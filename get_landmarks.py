@@ -149,14 +149,14 @@ class Attention:
     def get_detected_region_from_saved_position(self):
         self.detected_region = None
         if not self.head_position:
-            self.detected_region = Region.NOT_SEEN
+            self.detected_region = Regions.NOT_PRESENT
         else:
             if self.head_position.is_in_region(self.green_region_boundary):
-                self.detected_region = Region.GREEN
+                self.detected_region = Regions.GREEN
             elif self.head_position.is_in_region(self.yellow_region_boundary):
-                self.detected_region = Region.YELLOW
+                self.detected_region = Regions.YELLOW
             else:
-                self.detected_region = Region.RED
+                self.detected_region = Regions.RED
         return self.detected_region
 
 
