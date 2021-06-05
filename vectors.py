@@ -5,6 +5,9 @@ from math import atan2, acos, pi
 from enum import Enum
 from dataclasses import dataclass
 import time
+import pandas as pd
+from os import path, mkdir
+
 
 class HeadPosition:
     def __init__(self, direction):
@@ -72,10 +75,10 @@ class Visualization:
         cv2.putText(self.image,f"PITCH: {head_position.pitch:.1f}", (5,60), self.default_font, 0.8, (255,0,0), 2)
 
     def display_direction(self, head_position):
-        cv2.putText(self.image,f"HEAD DIRECTION: [{head_position.direction[0]:.2f}, {head_position.direction[1]:.2f}, {head_position.direction[2]:.2f}]", (5,420), self.default_font, 0.8, (0,0,255), 2)
+        cv2.putText(self.image,f"[{head_position.direction[0]:.2f}, {head_position.direction[1]:.2f}, {head_position.direction[2]:.2f}] (HEAD DIRECTION)", (5,420), self.default_font, 0.8, (0,0,255), 2)
    
     def display_attention_center(self, attention_center):
-        cv2.putText(self.image,f"ATTENTION VECTOR: [{attention_center.vector[0]:.2f}, {attention_center.vector[1]:.2f}, {attention_center.vector[2]:.2f}]", (5,450), self.default_font, 0.8, (0,0,255), 2)
+        cv2.putText(self.image,f"[{attention_center.vector[0]:.2f}, {attention_center.vector[1]:.2f}, {attention_center.vector[2]:.2f}] (ATTENTION VECTOR)", (5,450), self.default_font, 0.8, (0,0,255), 2)
     
     def display_fps(self):
         cv2.putText(self.image, f"FPS: {self.fps}", (10, 120), self.default_font, 1, (0,255,0), 2)
@@ -163,13 +166,13 @@ class Attention:
         self.detected_region = None
         if not self.head_position:
             self.detected_region = Regions.NOT_PRESENT
+        elif not self.head_position.is_in_region(self.yellow_region_boundary):
+            self.detected_region = Regions.RED
         else:
             if self.head_position.is_in_region_as_vector(self.green_region_boundary_dist, attention_center_vector):
                 self.detected_region = Regions.GREEN
-            elif self.head_position.is_in_region_as_vector(self.yellow_region_boundary_dist, attention_center_vector):
-                self.detected_region = Regions.YELLOW
             else:
-                self.detected_region = Regions.RED
+                self.detected_region = Regions.YELLOW
         return self.detected_region
 
     def get_detected_region_from_saved_position(self):
@@ -196,7 +199,14 @@ if __name__ == "__main__":
         0.3, #green region
         0.6) #yellow region
 
-    attention_center = AttentionCenter()
+    attention_center = AttentionCenter(EMA_alpha=0.005)
+
+    start_time = time.time()
+
+    data_to_save = {"time_since_start":[],
+                    "yaw":[],
+                    "pitch":[],
+                    "prediction":[]}
 
     while True:
 
@@ -215,6 +225,21 @@ if __name__ == "__main__":
         detected_region = attention.get_detected_region_from_saved_position_as_vector(attention_center.vector)
         
 
+        data_to_save["time_since_start"].append(time.time() - start_time)
+        if head_position:
+            data_to_save["yaw"].append(head_position.yaw)
+            data_to_save["pitch"].append(head_position.pitch)
+        else:
+            data_to_save["yaw"].append(np.nan)
+            data_to_save["pitch"].append(np.nan)
+            
+        data_to_save["prediction"].append(detected_region.name)
+
+
         visualization.show(head_position=head_position, region=detected_region, attention_center=attention_center)
         if visualization.is_return_key_pressed():
+            if not path.exists("./data"):
+                mkdir("data")
+            dataframe_to_save = pd.DataFrame.from_dict(data_to_save)
+            dataframe_to_save.to_csv(f"./data/{int(time.time())}.csv", index=False)
             break
