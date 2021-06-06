@@ -12,23 +12,27 @@ from os import path, mkdir
 class HeadPosition:
     def __init__(self, direction):
         self.direction = direction
-        self.yaw = self.yaw(direction)
-        self.pitch = self.pitch(direction)
+        self.yaw = self._yaw(direction)
+        self.pitch = self._pitch(direction)
 
     def is_in_region(self, region_boundary):
         return self.pitch < region_boundary.up and self.pitch > region_boundary.down \
             and self.yaw > region_boundary.left and self.yaw < region_boundary.right
 
-    def is_in_region_as_vector(self, region_boundary, attention_center):
-        return np.linalg.norm(self.direction - attention_center) < region_boundary
-
-    def yaw(self, direction):
+    def is_in_region_as_vector(self, region_boundary, attention_center_vector):
+        # return np.linalg.norm(self.direction - attention_center_vector) < 0.3
+        return self.pitch - self._pitch(attention_center_vector) < region_boundary.up and self.pitch - self._pitch(attention_center_vector) > region_boundary.down \
+            and self.yaw - self._yaw(attention_center_vector) > region_boundary.left and self.yaw - self._yaw(attention_center_vector) < region_boundary.right
+    
+    @classmethod
+    def _yaw(cls, direction):
         return 90 + atan2(direction[2], direction[0]) * 180 / pi
 
-    def pitch(cls, direction):
+    @classmethod
+    def _pitch(cls, direction):
         return -90 + atan2(direction[2], direction[1]) * 180 / pi * -1
 
-
+    
     @classmethod
     def from_landmarks_list(cls, landmarks):
         left_ear = landmarks[234]
@@ -130,15 +134,17 @@ class RegionBoundary:
 
 
 class AttentionCenter:
-    def __init__(self, EMA_alpha = 0.01):
+    def __init__(self, yellow_region_boundary, EMA_alpha = 0.01):
         self.vector = np.array([0, 0, -1])
         self.EMA_alpha = EMA_alpha
+        self.yellow_region_boundary = yellow_region_boundary
 
     def UpdateAttention_dummy(self):
         self.vector = np.array([0, 0, -1])
 
-    def UpdateAttention_EMA(self, head_position):
-        self.vector = AttentionCenter._normalize(head_position.direction * self.EMA_alpha + (1-self.EMA_alpha) * self.vector)
+    def UpdateAttention_EMA(self, detected_region):
+        if detected_region == Regions.YELLOW or detected_region == Regions.GREEN:
+            self.vector = AttentionCenter._normalize(head_position.direction * self.EMA_alpha + (1-self.EMA_alpha) * self.vector)
 
     @classmethod
     def _normalize(cls, vector):
@@ -147,13 +153,12 @@ class AttentionCenter:
 
 
 class Attention:
-    def __init__(self, green_region_boundary, yellow_region_boundary, green_region_boundary_dist, yellow_region_boundary_dist):
+    def __init__(self, green_region_boundary, yellow_region_boundary, attention_center=np.array([0,0,-1])):
         self.green_region_boundary = green_region_boundary # solution using angles
         self.yellow_region_boundary = yellow_region_boundary 
-        self.green_region_boundary_dist = green_region_boundary_dist # solution using distance of vectors
-        self.yellow_region_boundary_dist = yellow_region_boundary_dist
         self.head_position = None
         self.detected_region = None
+        self.attention_center = attention_center
 
 
     def set_green_region_boundary(self, boundary):
@@ -162,14 +167,18 @@ class Attention:
     def update_head_position(self, new_position):
         self.head_position = new_position
 
-    def get_detected_region_from_saved_position_as_vector(self, attention_center_vector):
+    def update_attention_center(self, new_attention):
+        self.attention_center = new_attention
+
+    def get_detected_region_from_saved_position_as_vector(self):
+        self.detected_region = None
         self.detected_region = None
         if not self.head_position:
             self.detected_region = Regions.NOT_PRESENT
         elif not self.head_position.is_in_region(self.yellow_region_boundary):
             self.detected_region = Regions.RED
         else:
-            if self.head_position.is_in_region_as_vector(self.green_region_boundary_dist, attention_center_vector):
+            if self.head_position.is_in_region_as_vector(self.green_region_boundary, attention_center.vector):
                 self.detected_region = Regions.GREEN
             else:
                 self.detected_region = Regions.YELLOW
@@ -195,11 +204,10 @@ if __name__ == "__main__":
     visualization = Visualization()
     attention = Attention(
         RegionBoundary(30, 30, -8, -30), #green region
-        RegionBoundary(35, 50, -10, -50), #yellow region
-        0.3, #green region
-        0.6) #yellow region
+        RegionBoundary(35, 50, -10, -50)) #yellow region
 
-    attention_center = AttentionCenter(EMA_alpha=0.005)
+    attention_center = AttentionCenter(attention.yellow_region_boundary, EMA_alpha=0.005)
+    detected_region = None
 
     start_time = time.time()
 
@@ -219,10 +227,11 @@ if __name__ == "__main__":
             head_position = None
         else:
             head_position = HeadPosition.from_landmarks_list(landmarks)
-            attention_center.UpdateAttention_EMA(head_position)
+            attention_center.UpdateAttention_EMA(detected_region)
 
         attention.update_head_position(head_position)
-        detected_region = attention.get_detected_region_from_saved_position_as_vector(attention_center.vector)
+        attention.update_attention_center(attention_center)
+        detected_region = attention.get_detected_region_from_saved_position_as_vector()
         
 
         data_to_save["time_since_start"].append(time.time() - start_time)
