@@ -207,14 +207,16 @@ if __name__ == "__main__":
         RegionBoundary(35, 50, -10, -50)) #yellow region
 
     attention_center = AttentionCenter(attention.yellow_region_boundary, EMA_alpha=0.005)
-    detected_region = None
+    MA_detected_region = None
+    stationary_detected_region = None
 
     start_time = time.time()
 
     data_to_save = {"time_since_start":[],
                     "yaw":[],
                     "pitch":[],
-                    "prediction":[]}
+                    "MA_prediction":[],
+                    "stationary_prediction":[]}
 
     while True:
 
@@ -227,11 +229,12 @@ if __name__ == "__main__":
             head_position = None
         else:
             head_position = HeadPosition.from_landmarks_list(landmarks)
-            attention_center.UpdateAttention_EMA(detected_region)
+            attention_center.UpdateAttention_EMA(MA_detected_region)
 
         attention.update_head_position(head_position)
         attention.update_attention_center(attention_center)
-        detected_region = attention.get_detected_region_from_saved_position_as_vector()
+        MA_detected_region = attention.get_detected_region_from_saved_position_as_vector()
+        stationary_detected_region = attention.get_detected_region_from_saved_position()
         
 
         data_to_save["time_since_start"].append(time.time() - start_time)
@@ -242,10 +245,11 @@ if __name__ == "__main__":
             data_to_save["yaw"].append(np.nan)
             data_to_save["pitch"].append(np.nan)
             
-        data_to_save["prediction"].append(detected_region.name)
+        data_to_save["MA_prediction"].append(MA_detected_region.name)
+        data_to_save["stationary_prediction"].append(stationary_detected_region.name)
 
 
-        visualization.show(head_position=head_position, region=detected_region, attention_center=attention_center)
+        visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center)
         if visualization.is_return_key_pressed():
             if not path.exists("./data"):
                 mkdir("data")
