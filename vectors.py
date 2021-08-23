@@ -24,7 +24,6 @@ class HeadPosition:
             and self.yaw > region_boundary.left and self.yaw < region_boundary.right
 
     def is_in_region_as_vector(self, region_boundary, attention_center_vector):
-        # return np.linalg.norm(self.direction - attention_center_vector) < 0.3
         return self.pitch - self._pitch(attention_center_vector) < region_boundary.up and self.pitch - self._pitch(attention_center_vector) > region_boundary.down \
             and self.yaw - self._yaw(attention_center_vector) > region_boundary.left and self.yaw - self._yaw(attention_center_vector) < region_boundary.right
     
@@ -91,32 +90,32 @@ class Visualization:
         if head_position.roll is not None:
             cv2.putText(self.image,f"ROLL: {head_position.roll:.1f}", (5,60), self.default_font, 0.5, (255,0,0), 2)
     def display_direction(self, head_position):
-        cv2.putText(self.image,f"[{head_position.direction[0]:.2f}, {head_position.direction[1]:.2f}, {head_position.direction[2]:.2f}] (HEAD)", (5,200), self.default_font, 0.5, (0,0,255), 2)
+        cv2.putText(self.image,f"[{head_position.direction[0]:.2f}, {head_position.direction[1]:.2f}, {head_position.direction[2]:.2f}] (HEAD POSITION)", (5,200), self.default_font, 0.5, (0,0,255), 2)
    
     def display_attention_center(self, attention_center):
-        cv2.putText(self.image,f"[{attention_center.vector[0]:.2f}, {attention_center.vector[1]:.2f}, {attention_center.vector[2]:.2f}] (ATTENTION)", (5,220), self.default_font, 0.5, (0,0,255), 2)
+        cv2.putText(self.image,f"[{attention_center.vector[0]:.2f}, {attention_center.vector[1]:.2f}, {attention_center.vector[2]:.2f}] (ATTENTION CENTER)", (5,220), self.default_font, 0.5, (0,0,255), 2)
     
     def display_fps(self):
         cv2.putText(self.image, f"FPS: {self.fps}", (5, 100), self.default_font, 0.5, (0,255,0), 2)
 
     def display_detected_region(self, region):
-        cv2.putText(self.image, f'REGION: {region.name}', (5, 120), self.default_font, 0.5, region.value, 2)
+        cv2.putText(self.image, f'ENGAGEMENT LEVEL: {region.name}', (5, 120), self.default_font, 0.5, region.value, 2)
 
     def display_talking(self, talk_checker):
         is_talking = talk_checker.is_talking()
         if is_talking:
-            cv2.putText(self.image, "TALKING", (5, 160), self.default_font, 0.5, (255, 255, 0), 2)
+            cv2.putText(self.image, "SPEAKING", (5, 160), self.default_font, 0.5, (255, 255, 0), 2)
         else:
-            cv2.putText(self.image, "NOT TALKING", (5, 160), self.default_font, 0.5, (255, 255, 0), 2)
+            cv2.putText(self.image, "LISTENING", (5, 160), self.default_font, 0.5, (255, 255, 0), 2)
     def display_sleepiness(self, sleepiness):
         is_sleeping = sleepiness.is_sleeping()
         if is_sleeping:
-            cv2.putText(self.image, f"SLEEPING", (5, 180), self.default_font, 0.5, (0, 255, 255), 2)
+            cv2.putText(self.image, f"NAPPING", (5, 180), self.default_font, 0.5, (0, 255, 255), 2)
         else:
-            cv2.putText(self.image, f"NOT SLEEPING", (5, 180), self.default_font, 0.5, (255, 255, 255), 2)
+            cv2.putText(self.image, f"AWAKE", (5, 180), self.default_font, 0.5, (255, 255, 255), 2)
 
     def display_storage(self, storage):
-        cv2.putText(self.image,f"STORED BY INTELLECTUS:", (5,260), self.default_font, 0.5, (255,0,0), 2)
+        cv2.putText(self.image,f"TOTAL DATA STORED BY INTELLECTUS:", (5,260), self.default_font, 0.5, (255,0,0), 2)
         for i in range(len(storage.data)):
             cv2.putText(self.image, str(storage.data[i]), (5, 280 + 20 * i), self.default_font, 0.5, storage.data[i].region.value, 2)
 
@@ -339,18 +338,35 @@ class SingleEyeMovement:
           
         
 class StorageEntry:
-    def __init__(self, region):
+    def __init__(self, region, previous_region):
+        self.previous_region = previous_region
         self.region = region
         self.time = datetime.now()
     def __str__(self):
         if self.region == Regions.GREEN:
-            r = "ENGAGED"
+            if self.previous_region == Regions.NOT_PRESENT:
+                r = "REJOINED"
+            else:
+                r = "FULLY ENGAGED"
         elif self.region == Regions.YELLOW:
-            r = "PRESENT"
+            if self.previous_region == Regions.GREEN:
+                r = "ENGAGEMENT DROPPED OFF"
+            elif self.previous_region == Regions.YELLOW:
+                r = "PRESENT"
+            elif self.previous_region == Regions.RED:
+                r = "ENGAGEMENT RESTORED"
+            elif self.previous_region == Regions.NOT_PRESENT:
+                r = "REJOINED"
         elif self.region == Regions.RED:
-            r = "UNKNOWN"
-        else:
-            r = "LEFT MEETING"
+            if self.previous_region == Regions.NOT_PRESENT:
+                r = "REJOINED"
+            else:
+                r = "ENGAGEMENT LOST"
+        elif self.region == Regions.NOT_PRESENT:
+            if self.previous_region == Regions.GREEN or self.previous_region == Regions.YELLOW:
+                r = "LEFT MEETING"
+            else:
+                r = "ABSENT"
 
         return self.time.strftime("%H:%M:%S.%f - %b %d %Y") + r
 
@@ -358,7 +374,7 @@ class StorageEntry:
 class Storage:
     def __init__(self, saved_frames, frames_delay=10):
         self.saved_frames = saved_frames
-        self.data = []
+        self.data = [StorageEntry(Regions.GREEN, Regions.GREEN)]
         self.delay = frames_delay
         self.timer = 1
 
@@ -369,7 +385,7 @@ class Storage:
             self.timer = 1
             if len(self.data) > self.saved_frames:
                 self.data.pop(0)
-            self.data.append(StorageEntry(entry))
+            self.data.append(StorageEntry(entry, self.data[-1].region))
 
 
 
