@@ -86,10 +86,10 @@ class Visualization:
         self.last_time = current_time
 
     def display_position(self, head_position):      
-        cv2.putText(self.image,f"YAW: {head_position.yaw:.1f}", (5,20), self.default_font, 0.5, (255,0,0), 2)
-        cv2.putText(self.image,f"PITCH: {head_position.pitch:.1f}", (5,40), self.default_font, 0.5, (255,0,0), 2)
+        cv2.putText(self.image,f"YAW: {head_position.yaw:.1f}", (5,30), self.default_font, 0.5, (255,0,0), 2)
+        cv2.putText(self.image,f"PITCH: {head_position.pitch:.1f}", (5,50), self.default_font, 0.5, (255,0,0), 2)
         if head_position.roll is not None:
-            cv2.putText(self.image,f"ROLL: {head_position.roll:.1f}", (5,60), self.default_font, 0.5, (255,0,0), 2)
+            cv2.putText(self.image,f"ROLL: {head_position.roll:.1f}", (5,70), self.default_font, 0.5, (255,0,0), 2)
     def display_direction(self, head_position):
         cv2.putText(self.image,f"[{head_position.direction[0]:.2f}, {head_position.direction[1]:.2f}, {head_position.direction[2]:.2f}] (HEAD POSITION)", (5,200), self.default_font, 0.5, (0,0,255), 2)
    
@@ -122,6 +122,7 @@ class Visualization:
 
 
     def show(self, head_position=None, region=None, attention_center=None, talk_checker=None, sleepiness=None, storage=None):
+        cv2.putText(self.image,f"TOTAL DATA PROCESSED LOCALLY: ", (5,15), self.default_font, 0.5, (255,0,0), 2)
         if self.show_position and head_position:
             self.display_position(head_position)
             self.display_direction(head_position)
@@ -265,7 +266,7 @@ class LipsMovement:
         self.openness_threshold = openness_threshold
 
     @classmethod
-    def from_landmarks_list(cls, landmarks, openness_threshold=0.1):
+    def from_landmarks_list(cls, landmarks, openness_threshold=0.07):
         upper_lip_position = LipsMovement._landmark_to_vector(landmarks[13])
         lower_lip_position = LipsMovement._landmark_to_vector(landmarks[14])
         left_mouth_corner = LipsMovement._landmark_to_vector(landmarks[78])
@@ -371,7 +372,7 @@ class StorageEntry:
             else:
                 r = "ABSENT"
 
-        return self.time.strftime("%H:%M:%S.%f - %b %d %Y") + r
+        return self.time.strftime("%H:%M:%S.%f - %b %d %Y - ") + r
 
 
 class Storage:
