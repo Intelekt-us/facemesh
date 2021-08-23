@@ -61,7 +61,7 @@ class HeadPosition:
 
 
 class Visualization:
-    def __init__(self, show_position=True, show_fps=True, show_region=True, show_attention_center=True, show_talking=True, show_sleep=True, show_data_feed=True):
+    def __init__(self, default_font_size=0.5, show_position=True, show_fps=True, show_region=True, show_attention_center=True, show_talking=True, show_sleep=True, show_data_feed=True):
         self.vc = cv2.VideoCapture(0)
         self.show_position = show_position
         self.show_attention_center = show_attention_center
@@ -73,6 +73,7 @@ class Visualization:
         self.last_time = time.time()
         self.fps = 0
         self.default_font = cv2.FONT_HERSHEY_SIMPLEX
+        self.default_font_size = default_font_size
 
     def read_image(self):
         success, self.image = self.vc.read()
@@ -241,11 +242,12 @@ class TalkChecker:
         self.not_talking_time = delay
     
     def update(self, lips_movement):
-        is_talking = lips_movement.is_mouth_open()
-        if is_talking:
-            self.not_talking_time = 0
-        else:
-            self.not_talking_time += 1
+        if lips_movement is not None:
+            is_talking = lips_movement.is_mouth_open()
+            if is_talking:
+                self.not_talking_time = 0
+            else:
+                self.not_talking_time += 1
     
     def is_talking(self):
         return self.not_talking_time < self.delay
@@ -288,7 +290,8 @@ class Sleepiness:
         self.alpha = alpha
 
     def update(self, eyes_movement):
-        self.MA_openness = self.MA_openness * (1 - self.alpha) + eyes_movement.mean_openness() * self.alpha
+        if eyes_movement:
+            self.MA_openness = self.MA_openness * (1 - self.alpha) + eyes_movement.mean_openness() * self.alpha
     
     def is_sleeping(self):
         return self.MA_openness < self.threshold
@@ -420,6 +423,8 @@ if __name__ == "__main__":
         landmarks = face_mesh.get_face_landmarks(image)
         if landmarks is None:
             head_position = None
+            lips_movement = None
+            eyes_movement = None
         else:
             head_position = HeadPosition.from_landmarks_list(landmarks)
             lips_movement = LipsMovement.from_landmarks_list(landmarks)
