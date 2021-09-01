@@ -8,6 +8,7 @@ import time
 import pandas as pd
 from os import path, mkdir
 from datetime import datetime
+from iris_test import get_iris_coordinates
 
 
 class HeadPosition:
@@ -61,7 +62,7 @@ class HeadPosition:
 
 
 class Visualization:
-    def __init__(self, default_font_size=0.5, show_position=True, show_fps=True, show_region=True, show_attention_center=True, show_talking=True, show_sleep=True, show_data_feed=True):
+    def __init__(self, default_font_size=0.5, show_position=True, show_fps=True, show_region=True, show_attention_center=True, show_talking=True, show_sleep=True, show_data_feed=True, show_iris_coordinates=True):
         self.vc = cv2.VideoCapture(0)
         self.show_position = show_position
         self.show_attention_center = show_attention_center
@@ -70,6 +71,7 @@ class Visualization:
         self.show_talking = show_talking
         self.show_sleep = show_sleep
         self.show_data_feed = show_data_feed
+        self.show_iris_coordinates = show_iris_coordinates
         self.last_time = time.time()
         self.fps = 0
         self.default_font = cv2.FONT_HERSHEY_SIMPLEX
@@ -120,8 +122,12 @@ class Visualization:
         for i in range(len(storage.data)):
             cv2.putText(self.image, str(storage.data[i]), (5, 280 + 20 * i), self.default_font, 0.5, storage.data[i].region.value, 2)
 
+    def display_iris_coordinates(self, iris_coordinates):
+        for eye in iris_coordinates:
+            for point in eye:
+                cv2.circle(self.image, (int(point[0] * self.image.shape[1]), int(point[1] * self.image.shape[0])), 0, (0,0,255), 3)
 
-    def show(self, head_position=None, region=None, attention_center=None, talk_checker=None, sleepiness=None, storage=None):
+    def show(self, head_position=None, region=None, attention_center=None, talk_checker=None, sleepiness=None, storage=None, iris_coordinates=None):
         cv2.putText(self.image,f"TOTAL DATA PROCESSED LOCALLY: ", (5,15), self.default_font, 0.5, (255,0,0), 2)
         if self.show_position and head_position:
             self.display_position(head_position)
@@ -138,8 +144,11 @@ class Visualization:
             self.display_sleepiness(sleepiness)
         if self.show_data_feed and storage:
             self.display_storage(storage)
+        if self.show_iris_coordinates and iris_coordinates:
+            self.display_iris_coordinates(iris_coordinates)
         
         cv2.imshow("vid", self.image)
+
 
     def is_return_key_pressed(self):
         return cv2.waitKey(1) & 0xFF == ord('q')
@@ -426,11 +435,13 @@ if __name__ == "__main__":
             head_position = None
             lips_movement = None
             eyes_movement = None
+            iris_coordinates = None
         else:
             head_position = HeadPosition.from_landmarks_list(landmarks)
             lips_movement = LipsMovement.from_landmarks_list(landmarks)
             eyes_movement = EyesMovement.from_landmarks_list(landmarks)
             attention_center.UpdateAttention_EMA(MA_detected_region)
+            iris_coordinates = get_iris_coordinates(image)
 
         attention.update_head_position(head_position)
         attention.update_attention_center(attention_center)
@@ -453,8 +464,8 @@ if __name__ == "__main__":
         data_to_save["MA_prediction"].append(MA_detected_region.name)
         data_to_save["stationary_prediction"].append(stationary_detected_region.name)
 
-
-        visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center, talk_checker=talk_checker, sleepiness=sleepiness, storage=storage)
+        
+        visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center, talk_checker=talk_checker, sleepiness=sleepiness, storage=storage, iris_coordinates = iris_coordinates)
         if visualization.is_return_key_pressed():
             if not path.exists("./data"):
                 mkdir("data")
