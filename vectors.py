@@ -555,7 +555,7 @@ if __name__ == "__main__":
     attention = Attention(
         RegionBoundary(30, 30, -8, -30), #green region
         RegionBoundary(35, 50, -10, -50)) #yellow region
-    sleepiness = Sleepiness(0.3, 0.05)
+    sleepiness = Sleepiness(0.25, 0.05)
     talk_checker = TalkChecker()
     storage = Storage(10)
     LEFT_EYE_LANDMARKS_ID = np.array([33,133])
