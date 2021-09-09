@@ -66,7 +66,7 @@ class HeadPosition:
 
 
 class Visualization:
-    def __init__(self, default_font_size=0.5, show_position=True, show_fps=True, show_region=True, show_attention_center=True, show_talking=True, show_sleep=True, show_data_feed=True, show_iris_coordinates=True, show_screen_distance=True):
+    def __init__(self, default_font_size=0.5, show_position=True, show_fps=True, show_region=True, show_attention_center=True, show_talking=True, show_sleep=True, show_data_feed=True, show_iris_coordinates=True, show_screen_distance=True, show_iris_position=True):
         self.vc = cv2.VideoCapture(0)
         ret, frame = self.vc.read()
         if not ret:
@@ -82,10 +82,12 @@ class Visualization:
         self.show_data_feed = show_data_feed
         self.show_iris_coordinates = show_iris_coordinates
         self.show_screen_distance = show_screen_distance
+        self.show_iris_position = show_iris_position
         self.last_time = time.time()
         self.fps = 0
         self.default_font = cv2.FONT_HERSHEY_SIMPLEX
         self.default_font_size = default_font_size
+        self.iris_position = [0.,0.]
 
     def read_image(self):
         success, self.image = self.vc.read()
@@ -118,16 +120,16 @@ class Visualization:
     def display_talking(self, talk_checker):
         is_talking = talk_checker.is_talking()
         if is_talking:
-            cv2.putText(self.image, "SPEAKING", (5, 160), self.default_font, 0.5, (255, 255, 0), 2)
+            cv2.putText(self.image, "SPEAKING", (5, 170), self.default_font, 0.5, (255, 255, 0), 2)
         else:
-            cv2.putText(self.image, "LISTENING", (5, 160), self.default_font, 0.5, (255, 255, 0), 2)
+            cv2.putText(self.image, "LISTENING", (5, 170), self.default_font, 0.5, (255, 255, 0), 2)
 
     def display_sleepiness(self, sleepiness):
         is_sleeping = sleepiness.is_sleeping()
         if is_sleeping:
-            cv2.putText(self.image, f"NAPPING", (5, 180), self.default_font, 0.5, (0, 255, 255), 2)
+            cv2.putText(self.image, f"NAPPING", (5, 185), self.default_font, 0.5, (0, 255, 255), 2)
         else:
-            cv2.putText(self.image, f"AWAKE", (5, 180), self.default_font, 0.5, (255, 255, 255), 2)
+            cv2.putText(self.image, f"AWAKE", (5, 185), self.default_font, 0.5, (255, 255, 255), 2)
 
     def display_storage(self, storage):
         cv2.putText(self.image,f"TOTAL DATA STORED BY INTELLECTUS:", (5,260), self.default_font, 0.5, (255,0,0), 2)
@@ -140,9 +142,14 @@ class Visualization:
                 cv2.circle(self.image, (int(point[0]), int(point[1])), 0, (255,0,0), 3)
 
     def display_screen_distance(self, screen_distance):
-        cv2.putText(self.image,f"DISTANCE FROM THE SCREEN: {int(screen_distance/10.)}cm", (5,135), self.default_font, 0.5, (255,0,0), 2)
+        cv2.putText(self.image,f"DISTANCE FROM THE SCREEN: {int(screen_distance * 0.0393700787)}in ({int(screen_distance/10.)}cm)", (5,135), self.default_font, 0.5, (0,255,0), 2)
 
-    def show(self, head_position=None, region=None, attention_center=None, talk_checker=None, sleepiness=None, storage=None, iris_coordinates=None, screen_distance=None):
+    def display_iris_position(self, iris_position):
+        self.iris_position[0] = self.iris_position[0] * 0.9 + iris_position[0] * 0.1
+        self.iris_position[1] = self.iris_position[1] * 0.9 + iris_position[1] * 0.1
+        cv2.putText(self.image, f"EYEBALL DIRECTION: [{self.iris_position[0]:.2f},{self.iris_position[1]:.2f}]", (5,150), self.default_font, 0.5, (0,255,0), 2)
+
+    def show(self, head_position=None, region=None, attention_center=None, talk_checker=None, sleepiness=None, storage=None, iris_coordinates=None, screen_distance=None, iris_position=None):
         if self.show_iris_coordinates and iris_coordinates:
             self.display_iris_coordinates(iris_coordinates)
         cv2.putText(self.image,f"TOTAL DATA PROCESSED LOCALLY: ", (5,15), self.default_font, 0.5, (255,0,0), 2)
@@ -163,6 +170,8 @@ class Visualization:
             self.display_storage(storage)
         if self.show_screen_distance and screen_distance:
             self.display_screen_distance(screen_distance)
+        if self.show_iris_position and iris_position is not None:
+            self.display_iris_position(iris_position)
         
         cv2.imshow("vid", self.image)
 
@@ -574,6 +583,9 @@ if __name__ == "__main__":
             left_iris_landmarks = None
             right_iris_landmarks = None
             iris_coordinates = None
+            eyes_position = None
+            head_screen_distance = None
+            iris_coordinates = None
         else:
             head_position = HeadPosition.from_landmarks_list(landmarks)
             landmarks[:,0] *= image.shape[1]
@@ -623,7 +635,7 @@ if __name__ == "__main__":
             df = df.append({'time': datetime.now(),'yaw': np.nan, 'pitch': np.nan,
             'roll': np.nan, 'eyes_position':np.nan, 'attention_vector': np.nan,
             'screen_distance': np.nan, 'mouth_openness': np.nan, 'eyes_openness': np.nan}, ignore_index=True)
-        visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center, talk_checker=talk_checker, sleepiness=sleepiness, storage=storage, iris_coordinates=iris_coordinates, screen_distance=head_screen_distance)
+        visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center, talk_checker=talk_checker, sleepiness=sleepiness, storage=storage, iris_coordinates=iris_coordinates, screen_distance=head_screen_distance, iris_position=eyes_position)
         if visualization.is_return_key_pressed():
             break
     if not os.path.exists('./data/'):
