@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import dlib
 from custom.iris_lm_depth import from_landmarks_to_iris
 import mediapipe as mp
 
