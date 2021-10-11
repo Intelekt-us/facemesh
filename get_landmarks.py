@@ -1,10 +1,11 @@
+import time
+from enum import Enum
+from math import atan2, pi
+
+import cv2
 import mediapipe as mp
 import numpy as np
-import cv2
-from math import atan2, acos, pi
-from enum import Enum
-from dataclasses import dataclass
-import time
+
 
 class HeadPosition:
     def __init__(self, roll, pitch, yaw):
@@ -13,9 +14,8 @@ class HeadPosition:
         self.yaw = yaw
 
     def is_in_region(self, region_boundary):
-        return self.pitch < region_boundary.up and self.pitch > region_boundary.down \
-            and self.yaw > region_boundary.left and self.yaw < region_boundary.right
-
+        return region_boundary.up > self.pitch > region_boundary.down \
+               and region_boundary.left < self.yaw < region_boundary.right
 
     # automatic addition, substraction etc. of HeadPosition instances (allows for calculating average more easily)
     def __add__(self, p):
@@ -35,7 +35,7 @@ class HeadPosition:
             return HeadPosition(self.roll * p.roll, self.pitch * p.pitch, self.yaw * p.yaw)
         else:
             return HeadPosition(self.roll * p, self.pitch * p, self.yaw * p)
-    
+
     def __truediv__(self, p):
         if type(self) == type(self):
             return HeadPosition(self.roll / p.roll, self.pitch / p.pitch, self.yaw / p.yaw)
@@ -55,7 +55,7 @@ class HeadPosition:
         pitch = cls._vector_to_angle(pitch_vector)
         yaw = cls._vector_to_angle(yaw_vector)
         return cls(roll, pitch, yaw)
-    
+
     @classmethod
     def _vector_to_angle(cls, vector):
         return atan2(vector[1], vector[0]) * 180 / pi
@@ -81,13 +81,13 @@ class Visualization:
         self.fps = int(1 / (current_time - self.last_time))
         self.last_time = current_time
 
-    def display_position(self, head_position):      
-        cv2.putText(self.image,f"YAW: {head_position.yaw:.1f}", (5,30), self.default_font, 0.8, (255,0,0), 2)
-        cv2.putText(self.image,f"ROLL: {head_position.roll:.1f}", (5,60), self.default_font, 0.8, (255,0,0), 2)
-        cv2.putText(self.image,f"PITCH: {head_position.pitch:.1f}", (5,90), self.default_font, 0.8, (255,0,0), 2)
+    def display_position(self, head_position):
+        cv2.putText(self.image, f"YAW: {head_position.yaw:.1f}", (5, 30), self.default_font, 0.8, (255, 0, 0), 2)
+        cv2.putText(self.image, f"ROLL: {head_position.roll:.1f}", (5, 60), self.default_font, 0.8, (255, 0, 0), 2)
+        cv2.putText(self.image, f"PITCH: {head_position.pitch:.1f}", (5, 90), self.default_font, 0.8, (255, 0, 0), 2)
 
     def display_fps(self):
-        cv2.putText(self.image, f"FPS: {self.fps}", (10, 120), self.default_font, 1, (0,255,0), 2)
+        cv2.putText(self.image, f"FPS: {self.fps}", (10, 120), self.default_font, 1, (0, 255, 0), 2)
 
     def display_detected_region(self, region):
         cv2.putText(self.image, f'REGION: {region.name}', (10, 150), self.default_font, 1, region.value, 2)
@@ -107,7 +107,8 @@ class Visualization:
 
 class FaceMesh:
     def __init__(self, detection_confidence=0.5, tracking_confidence=0.5):
-        self.face_mesh = mp.solutions.face_mesh.FaceMesh(min_detection_confidence=detection_confidence, min_tracking_confidence=tracking_confidence)
+        self.face_mesh = mp.solutions.face_mesh.FaceMesh(min_detection_confidence=detection_confidence,
+                                                         min_tracking_confidence=tracking_confidence)
 
     def get_face_landmarks(self, image):
         reverted_colors_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -117,12 +118,12 @@ class FaceMesh:
         except:
             return None
 
-    
+
 class Regions(Enum):
-    GREEN = (0,255,0)
-    YELLOW = (0,255,255)
-    RED = (0,0,255)
-    NOT_PRESENT = (0,0,0)
+    GREEN = (0, 255, 0)
+    YELLOW = (0, 255, 255)
+    RED = (0, 0, 255)
+    NOT_PRESENT = (0, 0, 0)
 
 
 class RegionBoundary:
@@ -160,13 +161,12 @@ class Attention:
         return self.detected_region
 
 
-
 if __name__ == "__main__":
     face_mesh = FaceMesh()
     visualization = Visualization()
     attention = Attention(
-        RegionBoundary(30, 30, -8, -30), #green region
-        RegionBoundary(35, 50, -10, -50)) #yellow region
+        RegionBoundary(30, 30, -8, -30),  # green region
+        RegionBoundary(35, 50, -10, -50))  # yellow region
 
     while True:
 
@@ -185,4 +185,3 @@ if __name__ == "__main__":
         visualization.show(head_position=head_position, region=detected_region)
         if visualization.is_return_key_pressed():
             break
-

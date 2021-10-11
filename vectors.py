@@ -1,9 +1,8 @@
 import mediapipe as mp
 import numpy as np
 import cv2
-from math import atan2, acos, pi, asin
+from math import atan2, pi, asin
 from enum import Enum
-from dataclasses import dataclass
 import time
 import pandas as pd
 from os import path, mkdir
@@ -21,13 +20,13 @@ class HeadPosition:
             self.roll = self._roll(roll_vector)
 
     def is_in_region(self, region_boundary):
-        return self.pitch < region_boundary.up and self.pitch > region_boundary.down \
-            and self.yaw > region_boundary.left and self.yaw < region_boundary.right
+        return region_boundary.up > self.pitch > region_boundary.down \
+               and region_boundary.left < self.yaw < region_boundary.right
 
     def is_in_region_as_vector(self, region_boundary, attention_center_vector):
-        return self.pitch - self._pitch(attention_center_vector) < region_boundary.up and self.pitch - self._pitch(attention_center_vector) > region_boundary.down \
-            and self.yaw - self._yaw(attention_center_vector) > region_boundary.left and self.yaw - self._yaw(attention_center_vector) < region_boundary.right
-    
+        return region_boundary.up > self.pitch - self._pitch(attention_center_vector) > region_boundary.down \
+               and region_boundary.left < self.yaw - self._yaw(attention_center_vector) < region_boundary.right
+
     @classmethod
     def _yaw(cls, direction):
         return 90 + atan2(direction[2], direction[0]) * 180 / pi
@@ -38,9 +37,9 @@ class HeadPosition:
 
     @classmethod
     def _roll(cls, roll_vector):
-        return np.abs(asin(np.sum(np.dot(roll_vector, np.array([0.,1.,0.])))/np.sqrt(np.sum(roll_vector**2))) * 180 / pi)
+        return np.abs(
+            asin(np.sum(np.dot(roll_vector, np.array([0., 1., 0.]))) / np.sqrt(np.sum(roll_vector ** 2))) * 180 / pi)
 
-    
     @classmethod
     def from_landmarks_list(cls, landmarks):
         left_ear = landmarks[234]
@@ -52,17 +51,18 @@ class HeadPosition:
 
         normal = np.cross(vertical_verctor, horizontal_vector)
         normal = cls._normalize(normal)
-        
+
         return cls(normal, cls._normalize(horizontal_vector))
 
     @classmethod
     def _normalize(cls, vector):
-        return vector / np.sqrt(np.sum(vector**2))
-    
+        return vector / np.sqrt(np.sum(vector ** 2))
 
 
 class Visualization:
-    def __init__(self, default_font_size=0.5, show_position=True, show_fps=True, show_region=True, show_attention_center=True, show_talking=True, show_sleep=True, show_data_feed=True, show_iris_coordinates=True):
+    def __init__(self, default_font_size=0.5, show_position=True, show_fps=True, show_region=True,
+                 show_attention_center=True, show_talking=True, show_sleep=True, show_data_feed=True,
+                 show_iris_coordinates=True):
         self.vc = cv2.VideoCapture(0)
         self.show_position = show_position
         self.show_attention_center = show_attention_center
@@ -87,19 +87,24 @@ class Visualization:
         self.fps = int(1 / (current_time - self.last_time))
         self.last_time = current_time
 
-    def display_position(self, head_position):      
-        cv2.putText(self.image,f"YAW: {head_position.yaw:.1f}", (5,30), self.default_font, 0.5, (255,0,0), 2)
-        cv2.putText(self.image,f"PITCH: {head_position.pitch:.1f}", (5,50), self.default_font, 0.5, (255,0,0), 2)
+    def display_position(self, head_position):
+        cv2.putText(self.image, f"YAW: {head_position.yaw:.1f}", (5, 30), self.default_font, 0.5, (255, 0, 0), 2)
+        cv2.putText(self.image, f"PITCH: {head_position.pitch:.1f}", (5, 50), self.default_font, 0.5, (255, 0, 0), 2)
         if head_position.roll is not None:
-            cv2.putText(self.image,f"ROLL: {head_position.roll:.1f}", (5,70), self.default_font, 0.5, (255,0,0), 2)
+            cv2.putText(self.image, f"ROLL: {head_position.roll:.1f}", (5, 70), self.default_font, 0.5, (255, 0, 0), 2)
+
     def display_direction(self, head_position):
-        cv2.putText(self.image,f"[{head_position.direction[0]:.2f}, {head_position.direction[1]:.2f}, {head_position.direction[2]:.2f}] (HEAD POSITION)", (5,200), self.default_font, 0.5, (0,0,255), 2)
-   
+        cv2.putText(self.image,
+                    f"[{head_position.direction[0]:.2f}, {head_position.direction[1]:.2f}, {head_position.direction[2]:.2f}] (HEAD POSITION)",
+                    (5, 200), self.default_font, 0.5, (0, 0, 255), 2)
+
     def display_attention_center(self, attention_center):
-        cv2.putText(self.image,f"[{attention_center.vector[0]:.2f}, {attention_center.vector[1]:.2f}, {attention_center.vector[2]:.2f}] (ATTENTION CENTER)", (5,220), self.default_font, 0.5, (0,0,255), 2)
-    
+        cv2.putText(self.image,
+                    f"[{attention_center.vector[0]:.2f}, {attention_center.vector[1]:.2f}, {attention_center.vector[2]:.2f}] (ATTENTION CENTER)",
+                    (5, 220), self.default_font, 0.5, (0, 0, 255), 2)
+
     def display_fps(self):
-        cv2.putText(self.image, f"FPS: {self.fps}", (5, 100), self.default_font, 0.5, (0,255,0), 2)
+        cv2.putText(self.image, f"FPS: {self.fps}", (5, 100), self.default_font, 0.5, (0, 255, 0), 2)
 
     def display_detected_region(self, region):
         cv2.putText(self.image, f'ENGAGEMENT LEVEL: {region.name}', (5, 120), self.default_font, 0.5, region.value, 2)
@@ -110,6 +115,7 @@ class Visualization:
             cv2.putText(self.image, "SPEAKING", (5, 160), self.default_font, 0.5, (255, 255, 0), 2)
         else:
             cv2.putText(self.image, "LISTENING", (5, 160), self.default_font, 0.5, (255, 255, 0), 2)
+
     def display_sleepiness(self, sleepiness):
         is_sleeping = sleepiness.is_sleeping()
         if is_sleeping:
@@ -118,17 +124,20 @@ class Visualization:
             cv2.putText(self.image, f"AWAKE", (5, 180), self.default_font, 0.5, (255, 255, 255), 2)
 
     def display_storage(self, storage):
-        cv2.putText(self.image,f"TOTAL DATA STORED BY INTELLECTUS:", (5,260), self.default_font, 0.5, (255,0,0), 2)
+        cv2.putText(self.image, f"TOTAL DATA STORED BY INTELLECTUS:", (5, 260), self.default_font, 0.5, (255, 0, 0), 2)
         for i in range(len(storage.data)):
-            cv2.putText(self.image, str(storage.data[i]), (5, 280 + 20 * i), self.default_font, 0.5, storage.data[i].region.value, 2)
+            cv2.putText(self.image, str(storage.data[i]), (5, 280 + 20 * i), self.default_font, 0.5,
+                        storage.data[i].region.value, 2)
 
     def display_iris_coordinates(self, iris_coordinates):
         for eye in iris_coordinates:
             for point in eye:
-                cv2.circle(self.image, (int(point[0] * self.image.shape[1]), int(point[1] * self.image.shape[0])), 0, (0,0,255), 3)
+                cv2.circle(self.image, (int(point[0] * self.image.shape[1]), int(point[1] * self.image.shape[0])), 0,
+                           (0, 0, 255), 3)
 
-    def show(self, head_position=None, region=None, attention_center=None, talk_checker=None, sleepiness=None, storage=None, iris_coordinates=None):
-        cv2.putText(self.image,f"TOTAL DATA PROCESSED LOCALLY: ", (5,15), self.default_font, 0.5, (255,0,0), 2)
+    def show(self, head_position=None, region=None, attention_center=None, talk_checker=None, sleepiness=None,
+             storage=None, iris_coordinates=None):
+        cv2.putText(self.image, f"TOTAL DATA PROCESSED LOCALLY: ", (5, 15), self.default_font, 0.5, (255, 0, 0), 2)
         if self.show_position and head_position:
             self.display_position(head_position)
             self.display_direction(head_position)
@@ -146,16 +155,18 @@ class Visualization:
             self.display_storage(storage)
         if self.show_iris_coordinates and iris_coordinates:
             self.display_iris_coordinates(iris_coordinates)
-        
+
         cv2.imshow("vid", self.image)
 
-
-    def is_return_key_pressed(self):
+    @staticmethod
+    def is_return_key_pressed():
         return cv2.waitKey(1) & 0xFF == ord('q')
+
 
 class FaceMesh:
     def __init__(self, detection_confidence=0.5, tracking_confidence=0.5):
-        self.face_mesh = mp.solutions.face_mesh.FaceMesh(min_detection_confidence=detection_confidence, min_tracking_confidence=tracking_confidence)
+        self.face_mesh = mp.solutions.face_mesh.FaceMesh(min_detection_confidence=detection_confidence,
+                                                         min_tracking_confidence=tracking_confidence)
 
     def get_face_landmarks(self, image):
         reverted_colors_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -165,12 +176,12 @@ class FaceMesh:
         except:
             return None
 
-    
+
 class Regions(Enum):
-    GREEN = (0,255,0)
-    YELLOW = (0,255,255)
-    RED = (0,0,255)
-    NOT_PRESENT = (0,0,0)
+    GREEN = (0, 255, 0)
+    YELLOW = (0, 255, 255)
+    RED = (0, 0, 255)
+    NOT_PRESENT = (0, 0, 0)
 
 
 class RegionBoundary:
@@ -182,7 +193,7 @@ class RegionBoundary:
 
 
 class AttentionCenter:
-    def __init__(self, yellow_region_boundary, EMA_alpha = 0.01):
+    def __init__(self, yellow_region_boundary, EMA_alpha=0.01):
         self.vector = np.array([0, 0, -1])
         self.EMA_alpha = EMA_alpha
         self.yellow_region_boundary = yellow_region_boundary
@@ -192,22 +203,21 @@ class AttentionCenter:
 
     def UpdateAttention_EMA(self, detected_region):
         if detected_region == Regions.YELLOW or detected_region == Regions.GREEN:
-            self.vector = AttentionCenter._normalize(head_position.direction * self.EMA_alpha + (1-self.EMA_alpha) * self.vector)
+            self.vector = AttentionCenter._normalize(
+                head_position.direction * self.EMA_alpha + (1 - self.EMA_alpha) * self.vector)
 
     @classmethod
     def _normalize(cls, vector):
-        return vector / np.sqrt(np.sum(vector**2))
-
+        return vector / np.sqrt(np.sum(vector ** 2))
 
 
 class Attention:
-    def __init__(self, green_region_boundary, yellow_region_boundary, attention_center=np.array([0,0,-1])):
-        self.green_region_boundary = green_region_boundary # solution using angles
-        self.yellow_region_boundary = yellow_region_boundary 
+    def __init__(self, green_region_boundary, yellow_region_boundary, attention_center=np.array([0, 0, -1])):
+        self.green_region_boundary = green_region_boundary  # solution using angles
+        self.yellow_region_boundary = yellow_region_boundary
         self.head_position = None
         self.detected_region = None
         self.attention_center = attention_center
-
 
     def set_green_region_boundary(self, boundary):
         self.green_region_boundary = boundary
@@ -250,7 +260,7 @@ class TalkChecker:
     def __init__(self, delay=20):
         self.delay = delay
         self.not_talking_time = delay
-    
+
     def update(self, lips_movement):
         if lips_movement is not None:
             is_talking = lips_movement.is_mouth_open()
@@ -258,16 +268,14 @@ class TalkChecker:
                 self.not_talking_time = 0
             else:
                 self.not_talking_time += 1
-    
+
     def is_talking(self):
         return self.not_talking_time < self.delay
-    
-
-        
 
 
 class LipsMovement:
-    def __init__(self, upper_lip_position, lower_lip_position, left_mouth_corner, right_mouth_corner, openness_threshold):
+    def __init__(self, upper_lip_position, lower_lip_position, left_mouth_corner, right_mouth_corner,
+                 openness_threshold):
         self.upper_lip_position = upper_lip_position
         self.lower_lip_position = lower_lip_position
         self.left_mouth_corner = left_mouth_corner
@@ -281,12 +289,13 @@ class LipsMovement:
         left_mouth_corner = LipsMovement._landmark_to_vector(landmarks[78])
         right_mouth_corner = LipsMovement._landmark_to_vector(landmarks[308])
         return cls(upper_lip_position, lower_lip_position, left_mouth_corner, right_mouth_corner, openness_threshold)
-        
+
     def is_mouth_open(self):
         return self._calculate_openness() > self.openness_threshold
 
     def _calculate_openness(self):
-        return np.linalg.norm(self.upper_lip_position - self.lower_lip_position) / np.linalg.norm(self.left_mouth_corner - self.right_mouth_corner)
+        return np.linalg.norm(self.upper_lip_position - self.lower_lip_position) / np.linalg.norm(
+            self.left_mouth_corner - self.right_mouth_corner)
 
     @classmethod
     def _landmark_to_vector(cls, landmark):
@@ -302,10 +311,9 @@ class Sleepiness:
     def update(self, eyes_movement):
         if eyes_movement:
             self.MA_openness = self.MA_openness * (1 - self.alpha) + eyes_movement.mean_openness() * self.alpha
-    
+
     def is_sleeping(self):
         return self.MA_openness < self.threshold
-
 
 
 class EyesMovement:
@@ -315,11 +323,10 @@ class EyesMovement:
         self.openness_threshold = openness_threshold
 
     def are_open(self):
-        return self.mean_openness() > openness_threshold
+        return self.mean_openness() > self.openness_threshold
 
     def mean_openness(self):
         return (self.left_eye.calculate_openness() + self.right_eye.calculate_openness()) / 2
-
 
     @classmethod
     def from_landmarks_list(cls, landmarks):
@@ -331,13 +338,16 @@ class EyesMovement:
         right_eye_lower_lid = EyesMovement._landmark_to_vector(landmarks[374])
         right_eye_left_corner = EyesMovement._landmark_to_vector(landmarks[362])
         right_eye_right_corner = EyesMovement._landmark_to_vector(landmarks[263])
-        left_eye = SingleEyeMovement(left_eye_upper_lid, left_eye_lower_lid, left_eye_left_corner, left_eye_right_corner)
-        right_eye = SingleEyeMovement(right_eye_upper_lid, right_eye_lower_lid, right_eye_left_corner, right_eye_right_corner)
+        left_eye = SingleEyeMovement(left_eye_upper_lid, left_eye_lower_lid, left_eye_left_corner,
+                                     left_eye_right_corner)
+        right_eye = SingleEyeMovement(right_eye_upper_lid, right_eye_lower_lid, right_eye_left_corner,
+                                      right_eye_right_corner)
         return cls(left_eye, right_eye)
-    
+
     @classmethod
     def _landmark_to_vector(cls, landmark):
         return np.array([landmark.x, landmark.y, landmark.z])
+
 
 class SingleEyeMovement:
     def __init__(self, upper_lid, lower_lid, left_corner, right_corner):
@@ -345,16 +355,17 @@ class SingleEyeMovement:
         self.lower_lid = lower_lid
         self.left_corner = left_corner
         self.right_corner = right_corner
-    
+
     def calculate_openness(self):
         return np.linalg.norm(self.upper_lid - self.lower_lid) / np.linalg.norm(self.left_corner - self.right_corner)
-          
-        
+
+
 class StorageEntry:
     def __init__(self, region, previous_region):
         self.previous_region = previous_region
         self.region = region
         self.time = datetime.now()
+
     def __str__(self):
         if self.region == Regions.GREEN:
             if self.previous_region == Regions.NOT_PRESENT:
@@ -401,13 +412,12 @@ class Storage:
             self.data.append(StorageEntry(entry, self.data[-1].region))
 
 
-
 if __name__ == "__main__":
     face_mesh = FaceMesh()
     visualization = Visualization()
     attention = Attention(
-        RegionBoundary(30, 30, -8, -30), #green region
-        RegionBoundary(35, 50, -10, -50)) #yellow region
+        RegionBoundary(30, 30, -8, -30),  # green region
+        RegionBoundary(35, 50, -10, -50))  # yellow region
     sleepiness = Sleepiness(0.3, 0.05)
     talk_checker = TalkChecker()
     storage = Storage(10)
@@ -418,11 +428,11 @@ if __name__ == "__main__":
 
     start_time = time.time()
 
-    data_to_save = {"time_since_start":[],
-                    "yaw":[],
-                    "pitch":[],
-                    "MA_prediction":[],
-                    "stationary_prediction":[]}
+    data_to_save = {"time_since_start": [],
+                    "yaw": [],
+                    "pitch": [],
+                    "MA_prediction": [],
+                    "stationary_prediction": []}
 
     while True:
 
@@ -447,11 +457,10 @@ if __name__ == "__main__":
         attention.update_attention_center(attention_center)
         sleepiness.update(eyes_movement)
         talk_checker.update(lips_movement)
-        
+
         MA_detected_region = attention.get_detected_region_from_saved_position_as_vector()
         storage.add(MA_detected_region)
         stationary_detected_region = attention.get_detected_region_from_saved_position()
-        
 
         data_to_save["time_since_start"].append(time.time() - start_time)
         if head_position:
@@ -460,12 +469,13 @@ if __name__ == "__main__":
         else:
             data_to_save["yaw"].append(np.nan)
             data_to_save["pitch"].append(np.nan)
-            
+
         data_to_save["MA_prediction"].append(MA_detected_region.name)
         data_to_save["stationary_prediction"].append(stationary_detected_region.name)
 
-        
-        visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center, talk_checker=talk_checker, sleepiness=sleepiness, storage=storage, iris_coordinates = iris_coordinates)
+        visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center,
+                           talk_checker=talk_checker, sleepiness=sleepiness, storage=storage,
+                           iris_coordinates=iris_coordinates)
         if visualization.is_return_key_pressed():
             if not path.exists("./data"):
                 mkdir("data")

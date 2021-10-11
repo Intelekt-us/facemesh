@@ -1,20 +1,20 @@
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 FILENAME = "1623095208"
-TIME_PERIOD = 5 # seconds
+TIME_PERIOD = 5  # seconds
 dataframe = pd.read_csv(f"./data/{FILENAME}.csv")
 
+dataframe.MA_prediction = dataframe.MA_prediction.replace(
+    to_replace={"NOT_PRESENT": 0, "RED": 1, "YELLOW": 2, "GREEN": 3})
+dataframe.stationary_prediction = dataframe.stationary_prediction.replace(
+    to_replace={"NOT_PRESENT": 0, "RED": 1, "YELLOW": 2, "GREEN": 3})
 
-dataframe.MA_prediction = dataframe.MA_prediction.replace(to_replace={"NOT_PRESENT":0,"RED":1,"YELLOW":2,"GREEN":3})
-dataframe.stationary_prediction = dataframe.stationary_prediction.replace(to_replace={"NOT_PRESENT":0,"RED":1,"YELLOW":2,"GREEN":3})
-
-plt.subplot(2,1,1)
-plt.yticks(ticks=[0,1,2,3])
+plt.subplot(2, 1, 1)
+plt.yticks(ticks=[0, 1, 2, 3])
 plt.plot(dataframe.time_since_start, dataframe.MA_prediction)
-plt.subplot(2,1,2)
-plt.yticks(ticks=[0,1,2,3])
+plt.subplot(2, 1, 2)
+plt.yticks(ticks=[0, 1, 2, 3])
 plt.plot(dataframe.time_since_start, dataframe.stationary_prediction)
 plt.show()
 

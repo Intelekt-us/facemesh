@@ -3,7 +3,6 @@ import numpy as np
 from custom.iris_lm_depth import from_landmarks_to_iris
 import mediapipe as mp
 
-
 points_idx = [33, 133, 362, 263, 61, 291, 199]
 points_idx = list(set(points_idx))
 points_idx.sort()
@@ -20,11 +19,11 @@ RED = (0, 0, 255)
 SMALL_CIRCLE_SIZE = 1
 LARGE_CIRCLE_SIZE = 2
 
-#frame_height = frame.shape[0]
-#frame_width = frame.shape[1]
-#image_size = (frame_width, frame_height)
-#focal_length = frame_width
-#facemesh = mp.solutions.face_mesh.FaceMesh()
+# frame_height = frame.shape[0]
+# frame_width = frame.shape[1]
+# image_size = (frame_width, frame_height)
+# focal_length = frame_width
+# facemesh = mp.solutions.face_mesh.FaceMesh()
 
 
 '''
@@ -91,32 +90,27 @@ def get_iris_coordinates(frame):
             face_landmarks = mesh_results.multi_face_landmarks[0]
         except:
             return None
-    
+
     frame_height = frame.shape[0]
     frame_width = frame.shape[1]
     image_size = (frame_width, frame_height)
     focal_length = frame_width
 
-
-
     landmarks = np.array([(lm.x, lm.y, lm.z) for lm in face_landmarks.landmark])
     landmarks = landmarks.T
 
-
-
-
     left_eye_landmarks = from_landmarks_to_iris(
-                    frame_rgb,
-                    landmarks[:, left_eye_landmarks_id],
-                    image_size,
-                    is_right_eye=False,
-                    focal_length=focal_length,
-                )
+        frame_rgb,
+        landmarks[:, left_eye_landmarks_id],
+        image_size,
+        is_right_eye=False,
+        focal_length=focal_length,
+    )
     right_eye_landmarks = from_landmarks_to_iris(
-                    frame_rgb,
-                    landmarks[:, right_eye_landmarks_id],
-                    image_size,
-                    is_right_eye=True,
-                    focal_length=focal_length,
-                )
+        frame_rgb,
+        landmarks[:, right_eye_landmarks_id],
+        image_size,
+        is_right_eye=True,
+        focal_length=focal_length,
+    )
     return (left_eye_landmarks, right_eye_landmarks)
