@@ -2,5 +2,6 @@
 
 
 ### How to start
-- run `pip install pipenv`
-- run `pipenv install --dev`
+- download pipenv: `pip install pipenv`
+- install dependencies: `pipenv install --dev`
+- run: `pipenv run python vectors.py`
