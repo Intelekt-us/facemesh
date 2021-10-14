@@ -1,18 +1,14 @@
-import pandas as pd
+import os
 import time
-from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from math import acos, asin, atan2, pi
-from os import mkdir, path
-from datetime import datetime
+from math import asin, atan2, pi
 
 import cv2
 import mediapipe as mp
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import os
 
 
 class HeadPosition:
@@ -108,8 +104,10 @@ class Visualization:
 
     def calculate_iris_Eaverage(self):
         if MA_detected_region == Regions.GREEN or MA_detected_region == Regions.YELLOW:
-            self.iris_Eaverage[0] = self.iris_Eaverage[0] * (1 - self.ema_factor) + self.iris_position[0] * self.ema_factor
-            self.iris_Eaverage[1] = self.iris_Eaverage[1] * (1 - self.ema_factor) + self.iris_position[1] * self.ema_factor
+            self.iris_Eaverage[0] = self.iris_Eaverage[0] * (1 - self.ema_factor) + \
+                                    self.iris_position[0] * self.ema_factor
+            self.iris_Eaverage[1] = self.iris_Eaverage[1] * (1 - self.ema_factor) + \
+                                    self.iris_position[1] * self.ema_factor
         return self.iris_Eaverage
 
     def calculate_extreg(self):
@@ -652,7 +650,6 @@ if __name__ == "__main__":
             iris_coordinates = None
             eyes_position = None
             head_screen_distance = None
-            iris_coordinates = None
         else:
             head_position = HeadPosition.from_landmarks_list(landmarks)
             landmarks[:, 0] *= image.shape[1]
