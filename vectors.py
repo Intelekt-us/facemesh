@@ -95,6 +95,17 @@ class Visualization:
         self.ema_factor = ema_factor
         self.iris_Eaverage = [0., 0.]
 
+    def update_green_boundary(self):
+        if MA_detected_region == Regions.YELLOW:
+            if IrisGreenBoundary.up < self.extendreg[0] < IrisYellowBoundary.up:
+                IrisGreenBoundary.up = self.extendreg[0]
+            if IrisGreenBoundary.right < self.extendreg[1] < IrisYellowBoundary.right:
+                IrisGreenBoundary.right = self.extendreg[1]
+            if IrisGreenBoundary.down > self.extendreg[2] > IrisYellowBoundary.down:
+                IrisGreenBoundary.down = self.extendreg[2]
+            if IrisGreenBoundary.left > self.extendreg[3] > IrisYellowBoundary.left:
+                IrisGreenBoundary.left = self.extendreg[3]
+
     def calculate_iris_Eaverage(self):
         if MA_detected_region == Regions.GREEN or MA_detected_region == Regions.YELLOW:
             self.iris_Eaverage[0] = self.iris_Eaverage[0] * (1 - self.ema_factor) + self.iris_position[0] * self.ema_factor
@@ -601,16 +612,13 @@ class IrisAnalysis:
 if __name__ == "__main__":
     face_mesh = FaceMesh()
     IrisYellowBoundary = RegionBoundary(0.3, 0.3, -0.35, -0.3)
+    IrisGreenBoundary = RegionBoundary(0.17, 0.17, -0.25, -0.17)
     visualization = Visualization(ema_factor=0.0075)  # ema_factor - do dobrania dla responsywności
     attention = Attention(
         visualization.get_iris_position(),
         RegionBoundary(30, 30, -8, -30),  # green region
         RegionBoundary(35, 50, -10, -50),  # yellow region
-        RegionBoundary(
-            min(0.17 + visualization.extendreg[0], IrisYellowBoundary.up),
-            min(0.17 + visualization.extendreg[1], IrisYellowBoundary.right),
-            max(-0.25 + visualization.extendreg[2], IrisYellowBoundary.down),
-            max(-0.17 + visualization.extendreg[3], IrisYellowBoundary.left)),  # up,right,down,left; green eye region
+        IrisGreenBoundary,  # up,right,down,left; green eye region
         IrisYellowBoundary)  # yellow eye region
     sleepiness = Sleepiness(0.25, 0.05)
     talk_checker = TalkChecker()
@@ -686,6 +694,7 @@ if __name__ == "__main__":
         if not MA_detected_region == Regions.RED:
             visualization.calculate_iris_Eaverage()
             visualization.calculate_extreg()
+            visualization.update_green_boundary()
 
         if head_position is not None:
             df = df.append({'time': datetime.now(), 'yaw': head_position.yaw,
