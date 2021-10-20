@@ -622,8 +622,8 @@ class FinalStats:
     
     def get_report_text(self):
         return f"Time spent speaking: {self.speaking_time * 100:.1f}% of meeting\n" \
-            + f"Time spent listening: {self.listening_time:.1f}% of meeting\n" \
-            + f"Time you were absent: {self.absent_time:.1f}% of meeting\n" \
+            + f"Time spent listening: {self.listening_time * 100:.1f}% of meeting\n" \
+            + f"Time you were absent: {self.absent_time * 100:.1f}% of meeting\n" \
             + f"Total meeting time: {self.total_time}s\n" \
             + f"Average screen distance: {self.screen_distance/10:.0f}cm\n"
 
@@ -642,7 +642,7 @@ class FinalStatsCreator:
         current_time = dataframe.time[0]
         last_time = dataframe.time[0]
         for index, row in dataframe.iterrows():
-            if row.mouth_openness:
+            if row.is_mouth_open:
                 speaking_time += (current_time - last_time).total_seconds()
             elif row.attention_region == Regions.YELLOW or row.attention_region == Regions.GREEN:
                 listening_time += (current_time - last_time).total_seconds()
@@ -702,7 +702,7 @@ if __name__ == "__main__":
     start_time = time.time()
 
     df = pd.DataFrame(columns=['time', 'yaw', 'pitch', 'roll', 'eyes_position', 'attention_vector', 'attention_region', 'screen_distance',
-                               'mouth_openness', 'eyes_openness'])
+                               'mouth_openness', 'eyes_openness', 'is_mouth_open'])
 
     while True:
 
@@ -772,11 +772,12 @@ if __name__ == "__main__":
                             'attention_region': attention.detected_region,
                             'screen_distance': head_screen_distance,
                             'mouth_openness': lips_movement.calculate_openness(),
-                            'eyes_openness': eyelids_movement.mean_openness()}, ignore_index=True)
+                            'eyes_openness': eyelids_movement.mean_openness(),
+                            'is_mouth_open': talk_checker.is_talking()}, ignore_index=True)
         else:
             df = df.append({'time': datetime.now(), 'yaw': np.nan, 'pitch': np.nan,
                             'roll': np.nan, 'eyes_position': np.nan, 'attention_vector': np.nan, 'attention_region': Regions.NOT_PRESENT,
-                            'screen_distance': np.nan, 'mouth_openness': np.nan, 'eyes_openness': np.nan},
+                            'screen_distance': np.nan, 'mouth_openness': np.nan, 'eyes_openness': np.nan, 'is_mouth_open': np.nan},
                            ignore_index=True)
         visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center,
                            talk_checker=talk_checker, sleepiness=sleepiness, storage=storage,
