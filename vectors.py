@@ -101,6 +101,28 @@ class Visualization:
                 IrisGreenBoundary.down = self.extendreg[2]
             if IrisGreenBoundary.left > self.extendreg[3] > IrisYellowBoundary.left:
                 IrisGreenBoundary.left = self.extendreg[3]
+            if (head_screen_distance/10) > 50:
+                IrisGreenBoundary.up = (-0.0017/2) * (head_screen_distance/10) + IrisGreenBoundary.up
+                IrisGreenBoundary.right = (-0.0021/2) * (head_screen_distance/10) + IrisGreenBoundary.right
+                IrisGreenBoundary.down = (0.0027/2) * (head_screen_distance/10) + IrisGreenBoundary.down
+                IrisGreenBoundary.left = (0.0021/2) * (head_screen_distance/10) + IrisGreenBoundary.left
+            else:
+                IrisGreenBoundary.up = 0.17
+                IrisGreenBoundary.right = 0.17
+                IrisGreenBoundary.down = -0.25
+                IrisGreenBoundary.left = -0.17
+
+    def update_yellow_boundary(self):
+        if (head_screen_distance/10) > 50:
+            IrisYellowBoundary.up = (-0.0017/1.5) * (head_screen_distance/10) + 0.305
+            IrisYellowBoundary.right = (-0.0021/1.5) * (head_screen_distance/10) + 0.319
+            IrisYellowBoundary.down = (0.0027/1.5) * (head_screen_distance/10) - 0.395
+            IrisYellowBoundary.left = (0.0021/1.5) * (head_screen_distance/10) - 0.319
+        else:
+            IrisYellowBoundary.up = 0.3
+            IrisYellowBoundary.right = 0.3
+            IrisYellowBoundary.down = -0.35
+            IrisYellowBoundary.left = -0.3
 
     def calculate_iris_Eaverage(self):
         if MA_detected_region == Regions.GREEN or MA_detected_region == Regions.YELLOW:
@@ -611,7 +633,7 @@ if __name__ == "__main__":
     face_mesh = FaceMesh()
     IrisYellowBoundary = RegionBoundary(0.3, 0.3, -0.35, -0.3)
     IrisGreenBoundary = RegionBoundary(0.17, 0.17, -0.25, -0.17)
-    visualization = Visualization(ema_factor=0.0075)  # ema_factor - do dobrania dla responsywności
+    visualization = Visualization(ema_factor=0.0075)
     attention = Attention(
         visualization.get_iris_position(),
         RegionBoundary(30, 30, -8, -30),  # green region
@@ -692,6 +714,7 @@ if __name__ == "__main__":
             visualization.calculate_iris_Eaverage()
             visualization.calculate_extreg()
             visualization.update_green_boundary()
+            visualization.update_yellow_boundary()
 
         if head_position is not None:
             df = df.append({'time': datetime.now(), 'yaw': head_position.yaw,
