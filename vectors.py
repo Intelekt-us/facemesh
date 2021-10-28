@@ -629,6 +629,78 @@ class IrisAnalysis:
         return size
 
 
+class FinalStats:
+    def __init__(self, dataframe):
+        meeting_time = FinalStatsCreator.get_meeting_time(dataframe)
+        self.listening_time = meeting_time.listening_time
+        self.speaking_time = meeting_time.speaking_time
+        self.absent_time = FinalStatsCreator.get_absent_time(dataframe)
+        self.total_time = FinalStatsCreator.get_total_time(dataframe)
+        self.screen_distance = FinalStatsCreator.get_average_screen_distance(dataframe)
+
+    def save_report(self, filename):
+        with open(filename, 'w+') as file:
+            file.write(self.get_report_text())
+    
+    def get_report_text(self):
+        return f"Time spent speaking: {self.speaking_time * 100:.1f}% of meeting\n" \
+            + f"Time spent listening: {self.listening_time * 100:.1f}% of meeting\n" \
+            + f"Time you were absent: {self.absent_time * 100:.1f}% of meeting\n" \
+            + f"Total meeting time: {self.total_time}s\n" \
+            + f"Average screen distance: {self.screen_distance/10:.0f}cm\n"
+
+
+class MeetingTime:
+    def __init__(self, speaking_time, listening_time):
+        self.listening_time = listening_time
+        self.speaking_time = speaking_time
+
+
+class FinalStatsCreator:
+    @staticmethod
+    def get_meeting_time(dataframe):
+        speaking_time = 0
+        listening_time = 0
+        current_time = dataframe.time[0]
+        last_time = dataframe.time[0]
+        for index, row in dataframe.iterrows():
+            if row.is_mouth_open:
+                speaking_time += (current_time - last_time).total_seconds()
+            elif row.attention_region == Regions.YELLOW or row.attention_region == Regions.GREEN:
+                listening_time += (current_time - last_time).total_seconds()
+            last_time = current_time
+            current_time = row.time
+        
+        total_time = FinalStatsCreator.get_total_time(dataframe) 
+
+        listening_time = listening_time / total_time
+        speaking_time = speaking_time / total_time
+
+        return MeetingTime(speaking_time, listening_time)
+
+
+    @staticmethod
+    def get_absent_time(dataframe):
+        absent_time = 0
+        current_time = dataframe.time[0]
+        last_time = dataframe.time[0]
+        for index, row in dataframe.iterrows():
+            if row.attention_region == Regions.NOT_PRESENT:
+                absent_time += (current_time - last_time).total_seconds()
+            last_time = current_time
+            current_time = row.time
+        total_time = FinalStatsCreator.get_total_time(dataframe)
+        return absent_time / total_time
+
+    @staticmethod
+    def get_average_screen_distance(dataframe):
+        return dataframe.screen_distance.mean()
+
+    @staticmethod
+    def get_total_time(dataframe):
+        return (dataframe.iloc[-1].time - dataframe.time[0]).total_seconds()
+
+
 if __name__ == "__main__":
     face_mesh = FaceMesh()
     IrisYellowBoundary = RegionBoundary(0.3, 0.3, -0.35, -0.3)
@@ -651,8 +723,8 @@ if __name__ == "__main__":
     MA_detected_region = None
     start_time = time.time()
 
-    df = pd.DataFrame(columns=['time', 'yaw', 'pitch', 'roll', 'eyes_position', 'attention_vector', 'screen_distance',
-                               'mouth_openness', 'eyes_openness'])
+    df = pd.DataFrame(columns=['time', 'yaw', 'pitch', 'roll', 'eyes_position', 'attention_vector', 'attention_region', 'screen_distance',
+                               'mouth_openness', 'eyes_openness', 'is_mouth_open'])
 
     while True:
 
@@ -720,13 +792,15 @@ if __name__ == "__main__":
             df = df.append({'time': datetime.now(), 'yaw': head_position.yaw,
                             'pitch': head_position.pitch, 'roll': head_position.roll,
                             'eyes_position': eyes_position, 'attention_vector': head_position.direction,
+                            'attention_region': attention.detected_region,
                             'screen_distance': head_screen_distance,
                             'mouth_openness': lips_movement.calculate_openness(),
-                            'eyes_openness': eyelids_movement.mean_openness()}, ignore_index=True)
+                            'eyes_openness': eyelids_movement.mean_openness(),
+                            'is_mouth_open': talk_checker.is_talking()}, ignore_index=True)
         else:
             df = df.append({'time': datetime.now(), 'yaw': np.nan, 'pitch': np.nan,
-                            'roll': np.nan, 'eyes_position': np.nan, 'attention_vector': np.nan,
-                            'screen_distance': np.nan, 'mouth_openness': np.nan, 'eyes_openness': np.nan},
+                            'roll': np.nan, 'eyes_position': np.nan, 'attention_vector': np.nan, 'attention_region': Regions.NOT_PRESENT,
+                            'screen_distance': np.nan, 'mouth_openness': np.nan, 'eyes_openness': np.nan, 'is_mouth_open': np.nan},
                            ignore_index=True)
         visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center,
                            talk_checker=talk_checker, sleepiness=sleepiness, storage=storage,
@@ -736,5 +810,9 @@ if __name__ == "__main__":
             break
     if not os.path.exists('./data/'):
         os.mkdir('data')
+
     # noinspection PyTypeChecker
-    df.to_csv(f"./data/{datetime.now().isoformat(timespec='seconds')}.csv")
+    filename = datetime.now().isoformat(timespec='seconds')
+    df.to_csv(f"./data/{filename}.csv")
+    final_report = FinalStats(df)
+    final_report.save_report(f"./data/{filename}_report.txt")
