@@ -63,9 +63,9 @@ class HeadPosition:
 
 
 class Visualization:
-    def __init__(self, ema_factor, default_font_size=0.5, show_position=True, show_fps=True, show_region=True,
+    def __init__(self, default_font_size=0.5, show_position=True, show_fps=True, show_region=True,
                  show_attention_center=True, show_talking=True, show_sleep=True, show_data_feed=True,
-                 show_iris_coordinates=True, show_screen_distance=True, show_iris_position=True, ):
+                 show_iris_coordinates=True, show_screen_distance=True, show_iris_position=True):
         self.vc = cv2.VideoCapture(0)
         ret, frame = self.vc.read()
         if not ret:
@@ -87,58 +87,6 @@ class Visualization:
         self.default_font = cv2.FONT_HERSHEY_SIMPLEX
         self.default_font_size = default_font_size
         self.iris_position = [0., 0.]
-        self.extendreg = np.array([0., 0., 0., 0.])
-        self.ema_factor = ema_factor
-        self.iris_Eaverage = [0., 0.]
-
-    def update_green_boundary(self):
-        if MA_detected_region == Regions.YELLOW:
-            if IrisGreenBoundary.up < self.extendreg[0] < IrisYellowBoundary.up:
-                IrisGreenBoundary.up = self.extendreg[0]
-            if IrisGreenBoundary.right < self.extendreg[1] < IrisYellowBoundary.right:
-                IrisGreenBoundary.right = self.extendreg[1]
-            if IrisGreenBoundary.down > self.extendreg[2] > IrisYellowBoundary.down:
-                IrisGreenBoundary.down = self.extendreg[2]
-            if IrisGreenBoundary.left > self.extendreg[3] > IrisYellowBoundary.left:
-                IrisGreenBoundary.left = self.extendreg[3]
-            if (head_screen_distance/10) > 50:
-                IrisGreenBoundary.up = (-0.0017/2) * (head_screen_distance/10) + IrisGreenBoundary.up
-                IrisGreenBoundary.right = (-0.0021/2) * (head_screen_distance/10) + IrisGreenBoundary.right
-                IrisGreenBoundary.down = (0.0027/2) * (head_screen_distance/10) + IrisGreenBoundary.down
-                IrisGreenBoundary.left = (0.0021/2) * (head_screen_distance/10) + IrisGreenBoundary.left
-            else:
-                IrisGreenBoundary.up = 0.17
-                IrisGreenBoundary.right = 0.17
-                IrisGreenBoundary.down = -0.25
-                IrisGreenBoundary.left = -0.17
-
-    def update_yellow_boundary(self):
-        if (head_screen_distance/10) > 50:
-            IrisYellowBoundary.up = (-0.0017/1.5) * (head_screen_distance/10) + 0.305
-            IrisYellowBoundary.right = (-0.0021/1.5) * (head_screen_distance/10) + 0.319
-            IrisYellowBoundary.down = (0.0027/1.5) * (head_screen_distance/10) - 0.395
-            IrisYellowBoundary.left = (0.0021/1.5) * (head_screen_distance/10) - 0.319
-        else:
-            IrisYellowBoundary.up = 0.3
-            IrisYellowBoundary.right = 0.3
-            IrisYellowBoundary.down = -0.35
-            IrisYellowBoundary.left = -0.3
-
-    def calculate_iris_Eaverage(self):
-        if MA_detected_region == Regions.GREEN or MA_detected_region == Regions.YELLOW:
-            self.iris_Eaverage[0] = self.iris_Eaverage[0] * (1 - self.ema_factor) + \
-                                    self.iris_position[0] * self.ema_factor
-            self.iris_Eaverage[1] = self.iris_Eaverage[1] * (1 - self.ema_factor) + \
-                                    self.iris_position[1] * self.ema_factor
-        return self.iris_Eaverage
-
-    def calculate_extreg(self):
-        if MA_detected_region == Regions.GREEN or MA_detected_region == Regions.YELLOW:
-            self.extendreg[0] = max(self.extendreg[0], self.calculate_iris_Eaverage()[1])
-            self.extendreg[1] = max(self.extendreg[1], self.calculate_iris_Eaverage()[0])
-            self.extendreg[2] = min(self.extendreg[2], self.calculate_iris_Eaverage()[1])
-            self.extendreg[3] = min(self.extendreg[3], self.calculate_iris_Eaverage()[0])
-        return self.extendreg
 
     def read_image(self):
         success, self.image = self.vc.read()
@@ -237,9 +185,6 @@ class Visualization:
 
         cv2.imshow("vid", self.image)
 
-    def get_iris_position(self):
-        return self.iris_position
-
     def is_return_key_pressed(self):
         return cv2.waitKey(1) & 0xFF == ord('q')
 
@@ -276,10 +221,9 @@ class RegionBoundary:
 
 
 class AttentionCenter:
-    def __init__(self, yellow_region_boundary, EMA_alpha=0.01):
+    def __init__(self, EMA_alpha):
         self.vector = np.array([0, 0, -1])
         self.EMA_alpha = EMA_alpha
-        self.yellow_region_boundary = yellow_region_boundary
 
     def UpdateAttention_EMA(self, detected_region):
         if detected_region == Regions.YELLOW or detected_region == Regions.GREEN:
@@ -292,10 +236,9 @@ class AttentionCenter:
 
 
 class Attention:
-    def __init__(self, iris_pos, green_region_boundary, yellow_region_boundary,
-                 eye_green_region_boundary, eye_yellow_region_boundary,
+    def __init__(self, green_region_boundary, yellow_region_boundary,
+                 eye_green_region_boundary, eye_yellow_region_boundary, ema_factor=0.,
                  attention_center=np.array([0, 0, -1])):
-        self.iris_position = iris_pos
         self.green_region_boundary = green_region_boundary  # solution using angles
         self.yellow_region_boundary = yellow_region_boundary
         self.eye_green_region_boundary = eye_green_region_boundary
@@ -303,6 +246,60 @@ class Attention:
         self.head_position = None
         self.detected_region = None
         self.attention_center = attention_center
+        self.iris_position = [0., 0.]
+        self.extendreg = np.array([0., 0., 0., 0.])
+        self.ema_factor = ema_factor
+        self.iris_Eaverage = [0., 0.]
+        self.head_screen_distance = 0
+
+    def update_green_boundary(self):
+        if MA_detected_region == Regions.YELLOW:
+            if IrisGreenBoundary.up < self.extendreg[0] < IrisYellowBoundary.up:
+                IrisGreenBoundary.up = self.extendreg[0]
+            if IrisGreenBoundary.right < self.extendreg[1] < IrisYellowBoundary.right:
+                IrisGreenBoundary.right = self.extendreg[1]
+            if IrisGreenBoundary.down > self.extendreg[2] > IrisYellowBoundary.down:
+                IrisGreenBoundary.down = self.extendreg[2]
+            if IrisGreenBoundary.left > self.extendreg[3] > IrisYellowBoundary.left:
+                IrisGreenBoundary.left = self.extendreg[3]
+            if (self.head_screen_distance / 10) > 50:
+                IrisGreenBoundary.up = (-0.0017 / 2) * (self.head_screen_distance / 10) + IrisGreenBoundary.up
+                IrisGreenBoundary.right = (-0.0021 / 2) * (self.head_screen_distance / 10) + IrisGreenBoundary.right
+                IrisGreenBoundary.down = (0.0027 / 2) * (self.head_screen_distance / 10) + IrisGreenBoundary.down
+                IrisGreenBoundary.left = (0.0021 / 2) * (self.head_screen_distance / 10) + IrisGreenBoundary.left
+            else:
+                IrisGreenBoundary.up = 0.17
+                IrisGreenBoundary.right = 0.17
+                IrisGreenBoundary.down = -0.25
+                IrisGreenBoundary.left = -0.17
+
+    def update_yellow_boundary(self):
+        if (self.head_screen_distance / 10) > 50:
+            IrisYellowBoundary.up = (-0.0017 / 1.5) * (self.head_screen_distance / 10) + 0.305
+            IrisYellowBoundary.right = (-0.0021 / 1.5) * (self.head_screen_distance / 10) + 0.319
+            IrisYellowBoundary.down = (0.0027 / 1.5) * (self.head_screen_distance / 10) - 0.395
+            IrisYellowBoundary.left = (0.0021 / 1.5) * (self.head_screen_distance / 10) - 0.319
+        else:
+            IrisYellowBoundary.up = 0.3
+            IrisYellowBoundary.right = 0.3
+            IrisYellowBoundary.down = -0.35
+            IrisYellowBoundary.left = -0.3
+
+    def calculate_iris_Eaverage(self):
+        if MA_detected_region == Regions.GREEN or MA_detected_region == Regions.YELLOW:
+            self.iris_Eaverage[0] = self.iris_Eaverage[0] * (1 - self.ema_factor) + \
+                                    self.iris_position[0] * self.ema_factor
+            self.iris_Eaverage[1] = self.iris_Eaverage[1] * (1 - self.ema_factor) + \
+                                    self.iris_position[1] * self.ema_factor
+        return self.iris_Eaverage
+
+    def calculate_extreg(self):
+        if MA_detected_region == Regions.GREEN or MA_detected_region == Regions.YELLOW:
+            self.extendreg[0] = max(self.extendreg[0], self.calculate_iris_Eaverage()[1])
+            self.extendreg[1] = max(self.extendreg[1], self.calculate_iris_Eaverage()[0])
+            self.extendreg[2] = min(self.extendreg[2], self.calculate_iris_Eaverage()[1])
+            self.extendreg[3] = min(self.extendreg[3], self.calculate_iris_Eaverage()[0])
+        return self.extendreg
 
     def set_eye_green_region_boundary(self, boundary):
         self.eye_green_region_boundary = boundary
@@ -689,13 +686,13 @@ if __name__ == "__main__":
     face_mesh = FaceMesh()
     IrisYellowBoundary = RegionBoundary(0.3, 0.3, -0.35, -0.3)
     IrisGreenBoundary = RegionBoundary(0.17, 0.17, -0.25, -0.17)
-    visualization = Visualization(ema_factor=0.0075)
+    visualization = Visualization()
     attention = Attention(
-        visualization.get_iris_position(),
         RegionBoundary(30, 30, -8, -30),  # green region
         RegionBoundary(35, 50, -10, -50),  # yellow region
         IrisGreenBoundary,  # up,right,down,left; green eye region
-        IrisYellowBoundary)  # yellow eye region
+        IrisYellowBoundary,  # yellow eye region
+        ema_factor=0.0075)
     sleepiness = Sleepiness(0.25, 0.05)
     talk_checker = TalkChecker()
     storage = Storage(10)
@@ -703,7 +700,7 @@ if __name__ == "__main__":
     RIGHT_EYE_LANDMARKS_ID = np.array([362, 263])
     iris_detector = IrisDetector(tensorflow_model_path="models/iris_landmark.tflite")
     iris_analysis = IrisAnalysis(image_size=visualization.image_size, human_iris_size_in_mm=11.8)
-    attention_center: AttentionCenter = AttentionCenter(attention.yellow_region_boundary, EMA_alpha=0.005)
+    attention_center: AttentionCenter = AttentionCenter(EMA_alpha=0.005)
     MA_detected_region = None
     start_time = time.time()
 
@@ -756,7 +753,9 @@ if __name__ == "__main__":
                 head_screen_distance = None
                 iris_coordinates = None
             eyes_position = iris_analysis.eyes_relative_position(landmarks, left_iris_landmarks, right_iris_landmarks)
+            attention.iris_position = eyes_position
             head_screen_distance = iris_analysis.distance_from_irises(left_iris_landmarks, right_iris_landmarks)
+            attention.head_screen_distance = head_screen_distance
             attention_center.UpdateAttention_EMA(MA_detected_region)
 
         attention.update_head_position(head_position)
@@ -767,10 +766,10 @@ if __name__ == "__main__":
         MA_detected_region = attention.get_detected_region_from_saved_position_as_vector()
         storage.add(MA_detected_region)
         if not MA_detected_region == Regions.RED:
-            visualization.calculate_iris_Eaverage()
-            visualization.calculate_extreg()
-            visualization.update_green_boundary()
-            visualization.update_yellow_boundary()
+            attention.calculate_iris_Eaverage()
+            attention.calculate_extreg()
+            attention.update_green_boundary()
+            attention.update_yellow_boundary()
 
         if head_position is not None:
             df = df.append({'time': datetime.now(), 'yaw': head_position.yaw,
