@@ -281,9 +281,6 @@ class AttentionCenter:
         self.EMA_alpha = EMA_alpha
         self.yellow_region_boundary = yellow_region_boundary
 
-    def UpdateAttention_dummy(self):
-        self.vector = np.array([0, 0, -1])
-
     def UpdateAttention_EMA(self, detected_region):
         if detected_region == Regions.YELLOW or detected_region == Regions.GREEN:
             self.vector = AttentionCenter._normalize(
@@ -334,19 +331,6 @@ class Attention:
                 self.detected_region = Regions.GREEN
             else:
                 self.detected_region = Regions.YELLOW
-        return self.detected_region
-
-    def get_detected_region_from_saved_position(self):
-        self.detected_region = None
-        if not self.head_position:
-            self.detected_region = Regions.NOT_PRESENT
-        else:
-            if self.head_position.is_in_region(self.green_region_boundary):
-                self.detected_region = Regions.GREEN
-            elif self.head_position.is_in_region(self.yellow_region_boundary):
-                self.detected_region = Regions.YELLOW
-            else:
-                self.detected_region = Regions.RED
         return self.detected_region
 
 
