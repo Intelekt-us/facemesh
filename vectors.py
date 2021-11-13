@@ -331,6 +331,55 @@ class Attention:
         return self.detected_region
 
 
+class handRaise:
+    def __init__(self, min_visibility):
+        self.if_raise = False
+        self.min_visibility = min_visibility
+        self.results = None
+        self.head_landmark = None
+        self.right_hand_landmark = None
+        self.left_hand_landmark = None
+        mp_pose = mp.solutions.pose
+        self.pose = mp_pose.Pose(
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5,
+            model_complexity=0)
+
+    def get_pose_landmarks(self, image):
+        self.results = self.pose.process(image)
+        self.head_landmark = self.results.pose_landmarks.landmark[9]
+        self.right_hand_landmark = self.results.pose_landmarks.landmark[16]
+        self.left_hand_landmark = self.results.pose_landmarks.landmark[15]
+
+    def if_landmark_up(self, hand_landmark):
+        if hand_landmark.visibility > self.min_visibility and hand_landmark.y < self.head_landmark.y:
+            return True
+        else:
+            return False
+
+    def check_hand_raised(self):
+        if (self.if_landmark_up(self.right_hand_landmark) or self.if_landmark_up(self.left_hand_landmark)):
+            self.if_raise = True
+            print("Hand is raised!")
+        else:
+            self.if_raise = False
+            print("-")
+        print(self.if_raise)
+        return self.if_raise
+
+    def draw_pose(self, image):
+        mp_drawing = mp.solutions.drawing_utils
+        mp_drawing_styles = mp.solutions.drawing_styles
+        mp_pose = mp.solutions.pose
+        image.flags.writeable = True
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        mp_drawing.draw_landmarks(
+            image,
+            self.results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS,
+            landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
+
+
 class TalkChecker:
     def __init__(self, delay=20):
         self.delay = delay
@@ -622,13 +671,13 @@ class FinalStats:
     def save_report(self, filename):
         with open(filename, 'w+') as file:
             file.write(self.get_report_text())
-    
+
     def get_report_text(self):
         return f"Time spent speaking: {self.speaking_time * 100:.1f}% of meeting\n" \
-            + f"Time spent listening: {self.listening_time * 100:.1f}% of meeting\n" \
-            + f"Time you were absent: {self.absent_time * 100:.1f}% of meeting\n" \
-            + f"Total meeting time: {self.total_time}s\n" \
-            + f"Average screen distance: {self.screen_distance/10:.0f}cm\n"
+               + f"Time spent listening: {self.listening_time * 100:.1f}% of meeting\n" \
+               + f"Time you were absent: {self.absent_time * 100:.1f}% of meeting\n" \
+               + f"Total meeting time: {self.total_time}s\n" \
+               + f"Average screen distance: {self.screen_distance / 10:.0f}cm\n"
 
 
 class MeetingTime:
@@ -651,14 +700,13 @@ class FinalStatsCreator:
                 listening_time += (current_time - last_time).total_seconds()
             last_time = current_time
             current_time = row.time
-        
-        total_time = FinalStatsCreator.get_total_time(dataframe) 
+
+        total_time = FinalStatsCreator.get_total_time(dataframe)
 
         listening_time = listening_time / total_time
         speaking_time = speaking_time / total_time
 
         return MeetingTime(speaking_time, listening_time)
-
 
     @staticmethod
     def get_absent_time(dataframe):
@@ -684,6 +732,7 @@ class FinalStatsCreator:
 
 if __name__ == "__main__":
     face_mesh = FaceMesh()
+    hand_raise = handRaise(min_visibility=0.8)
     IrisYellowBoundary = RegionBoundary(0.3, 0.3, -0.35, -0.3)
     IrisGreenBoundary = RegionBoundary(0.17, 0.17, -0.25, -0.17)
     visualization = Visualization()
@@ -704,7 +753,8 @@ if __name__ == "__main__":
     MA_detected_region = None
     start_time = time.time()
 
-    df = pd.DataFrame(columns=['time', 'yaw', 'pitch', 'roll', 'eyes_position', 'attention_vector', 'attention_region', 'screen_distance',
+    df = pd.DataFrame(columns=['time', 'yaw', 'pitch', 'roll', 'eyes_position', 'attention_vector', 'attention_region',
+                               'screen_distance',
                                'mouth_openness', 'eyes_openness', 'is_mouth_open'])
 
     while True:
@@ -714,6 +764,7 @@ if __name__ == "__main__":
             break
 
         landmarks = face_mesh.get_face_landmarks(image)
+        hand_raise.get_pose_landmarks(image)
         if landmarks is None:
             head_position = None
             lips_movement = None
@@ -760,6 +811,7 @@ if __name__ == "__main__":
 
         attention.update_head_position(head_position)
         attention.update_attention_center(attention_center)
+        hand_raise.check_hand_raised()
         sleepiness.update(eyelids_movement)
         talk_checker.update(lips_movement)
 
@@ -782,13 +834,16 @@ if __name__ == "__main__":
                             'is_mouth_open': talk_checker.is_talking()}, ignore_index=True)
         else:
             df = df.append({'time': datetime.now(), 'yaw': np.nan, 'pitch': np.nan,
-                            'roll': np.nan, 'eyes_position': np.nan, 'attention_vector': np.nan, 'attention_region': Regions.NOT_PRESENT,
-                            'screen_distance': np.nan, 'mouth_openness': np.nan, 'eyes_openness': np.nan, 'is_mouth_open': np.nan},
+                            'roll': np.nan, 'eyes_position': np.nan, 'attention_vector': np.nan,
+                            'attention_region': Regions.NOT_PRESENT,
+                            'screen_distance': np.nan, 'mouth_openness': np.nan, 'eyes_openness': np.nan,
+                            'is_mouth_open': np.nan},
                            ignore_index=True)
         visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center,
                            talk_checker=talk_checker, sleepiness=sleepiness, storage=storage,
                            iris_coordinates=iris_coordinates, screen_distance=head_screen_distance,
                            iris_position=eyes_position)
+        hand_raise.draw_pose(image)
         if visualization.is_return_key_pressed():
             break
     if not os.path.exists('./data/'):
