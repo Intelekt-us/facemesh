@@ -574,6 +574,7 @@ class IrisAnalysis:
         self.image_size = image_size
         self.focal_length = image_size[0]
         self.human_iris_size_in_mm = human_iris_size_in_mm
+        self.alfa = None
 
     def eyes_relative_position(self, face, left_iris, right_iris):
         if right_iris is None and left_iris is None:
@@ -606,23 +607,46 @@ class IrisAnalysis:
         horizontal_position = 2 * left_center_distance / (left_center_distance + right_center_distance) - 1
         return np.array([horizontal_position, vertical_position])
 
-    def distance_from_irises(self, left_iris, right_iris):
+    def distance_from_irises(self, left_iris, right_iris, yaw):
         if left_iris is None and right_iris is None:
             return None
         elif left_iris is None:
-            return self._distance_from_single_iris(right_iris)
+            return self._distance_from_single_iris(right_iris, yaw)
         elif right_iris is None:
-            self._distance_from_single_iris(left_iris)
+            self._distance_from_single_iris(left_iris, yaw)
         else:
-            return (self._distance_from_single_iris(left_iris) + self._distance_from_single_iris(right_iris)) / 2
+            return (self._distance_from_single_iris(left_iris, yaw) + self._distance_from_single_iris(right_iris, yaw)) / 2
 
-    def _distance_from_single_iris(self, iris):
+    def _distance_from_single_iris(self, iris, yaw):
 
-        return self.human_iris_size_in_mm / self._iris_size(iris) * self.focal_length
+        return self.human_iris_size_in_mm / self._iris_size(iris) * self.focal_length #* np.cos(np.radians(yaw+self.alfa))
 
     def _iris_size(self, iris):
         size = np.linalg.norm(iris[1, :2] - iris[3, :2])
         return size
+
+    def eye_angle_to_head(self, iris, y, face, p):
+        pitch = np.radians(p)
+        yaw = np.radians(y)
+        i = np.linalg.norm(iris[1, :2] - iris[3, :2])
+        right_corner = face[33, :2]
+        left_corner = face[133, :2]
+        eye_center = (right_corner + left_corner) / 2
+        pupil = iris[0, :2]
+
+        xpoziom = np.linalg.norm(pupil[0] - eye_center[0])
+
+        xpion = np.linalg.norm(eye_center[1] - pupil[1])
+
+        self.alfa = np.degrees(np.arctan(11.8 * xpoziom / (11.5 * i + 11.8 * xpoziom * np.tan(yaw))))
+
+        if pupil[0] < eye_center[0]: self.alfa = -self.alfa
+
+        self.beta = np.degrees(np.arcsin((xpion * 11.8 * np.cos(yaw + self.alfa)) / (i * 12.56 * np.cos(pitch))))
+
+        if pupil[1] > eye_center[1]: self.beta = -self.beta
+
+        return self.alfa, self.beta
 
     # def _vertical_eye_angle_by_llp(self, iris, face):
     #
@@ -706,31 +730,6 @@ class IrisAnalysis:
     #    ls1_avg = np.mean(ls1, axis=0)
     #
     #    return np.linalg.norm(us2_avg - ls1_avg)
-
-    def _eye_angle_to_head(self, iris, y, face, p):
-
-        pitch = np.deg2rad(p)
-        yaw = np.deg2rad((y))
-        i = np.linalg.norm(iris[1, :2] - iris[3, :2])
-
-        right_corner = face[33, :2]
-        left_corner = face[133, :2]
-        eye_center = (right_corner + left_corner) / 2
-        pupil = iris[0, :2]
-
-        xpoz = np.linalg.norm(pupil[0] - eye_center[0])
-
-        xpion = np.linalg.norm(eye_center[1] - pupil[1])
-
-        a = np.arctan(11.8 * xpoz / (11.5 * i + 11.8 * xpoz * np.tan(yaw)))
-
-        if pupil[0] > eye_center[0]: a = -a
-
-        b = np.arcsin((xpion * 11.8 * np.cos(yaw + a)) / (i * 12.56 * np.cos(pitch)))
-
-        if pupil[1] > eye_center[1]: b = -b
-
-        return np.degrees(a), np.degrees(b)
 
 
 class FinalStats:
@@ -881,9 +880,12 @@ if __name__ == "__main__":
                 iris_coordinates = None
             eyes_position = iris_analysis.eyes_relative_position(landmarks, left_iris_landmarks, right_iris_landmarks)
             attention.iris_position = eyes_position
-            head_screen_distance = iris_analysis.distance_from_irises(left_iris_landmarks, right_iris_landmarks)
+            eyes_horizontal_angle = iris_analysis.eye_angle_to_head(left_iris_landmarks, head_position.yaw, landmarks, head_position.pitch)[0]
+            eyes_vertical_angle = iris_analysis.eye_angle_to_head(left_iris_landmarks, head_position.yaw, landmarks, head_position.pitch)[1]
+            head_screen_distance = iris_analysis.distance_from_irises(left_iris_landmarks, right_iris_landmarks, head_position.yaw)
             attention.head_screen_distance = head_screen_distance
             attention_center.UpdateAttention_EMA(MA_detected_region)
+            print(head_screen_distance, head_screen_distance * np.cos(np.radians(head_position.yaw+eyes_horizontal_angle)), head_position.yaw, eyes_horizontal_angle, eyes_vertical_angle)
 
             # res_llp = np.append(arr=res_llp, values=iris_analysis._vertical_eye_angle_by_llp(iris=left_iris_landmarks, face=landmarks))
             # res_ulp = np.append(arr=res_ulp, values=iris_analysis._vertical_eye_angle_by_ulp(iris=left_iris_landmarks, face=landmarks))
@@ -894,16 +896,16 @@ if __name__ == "__main__":
             # res_n226 = np.append(arr=res_n226, values=iris_analysis._vertical_eye_angle_by_n226(iris=left_iris_landmarks, face=landmarks))
             # res_n8 = np.append(arr=res_n8, values=iris_analysis._vertical_eye_angle_by_n8(iris=left_iris_landmarks, face=landmarks))
             # res_n1_33 = np.append(arr=res_n1_33, values=iris_analysis._vertical_eye_angle_by_n1_33(iris=left_iris_landmarks, face=landmarks))
-            alfa = np.append(arr=alfa, values=
-            iris_analysis._eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw,
-                                             p=head_position.pitch)[0])
-            beta = np.append(arr=beta, values=
-            iris_analysis._eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw,
-                                             p=head_position.pitch)[1])
-            print(np.round(
-                iris_analysis._eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw,
-                                                 p=head_position.pitch), 2))
-            # b_arr = np.append(arr=b_arr, values=iris_analysis._eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw, p=head_position.pitch)[1])
+            #alfa = np.append(arr=alfa, values=
+            #iris_analysis.eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw,
+            #                                 p=head_position.pitch)[0])
+            #beta = np.append(arr=beta, values=
+            #iris_analysis.eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw,
+            #                                 p=head_position.pitch)[1])
+            #print(np.round(
+            #    iris_analysis.eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw,
+            #                                     p=head_position.pitch), 2))
+            # b_arr = np.append(arr=b_arr, values=iris_analysis.eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw, p=head_position.pitch)[1])
 
         attention.update_head_position(head_position)
         attention.update_attention_center(attention_center)
