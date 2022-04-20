@@ -649,7 +649,7 @@ class IrisAnalysis:
         return self.alfa, self.beta
 
 
-        print('test git remote')
+        print('test2 git remote')
     # def _vertical_eye_angle_by_llp(self, iris, face):
     #
     #    pupil = iris[0, :2]
