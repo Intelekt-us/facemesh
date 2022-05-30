@@ -158,9 +158,10 @@ class Visualization:
             cv2.putText(self.image, str(storage.data[i]), (5, 280 + 20 * i), self.default_font, 0.5,
                         storage.data[i].region.value, 2)
 
-    def display_iris_coordinates(self, iris_coordinates):
+    def display_iris_coordinates(self, iris_coordinates, landmark):
         for point in iris_coordinates:
             cv2.circle(self.image, (int(point[0]), int(point[1])), 0, (255, 0, 0), 3)
+        cv2.circle(self.image, (int(landmark[0]), int(landmark[1])), 0, (0, 255, 0), 3)
 
     def display_screen_distance(self, screen_distance):
         cv2.putText(self.image,
@@ -168,16 +169,14 @@ class Visualization:
                     (5, 135), self.default_font, 0.5, (0, 255, 0), 2)
 
     def display_iris_position(self, iris_position):
-        self.iris_position[0] = self.iris_position[0] * 0.9 + iris_position[0] * 0.1
-        self.iris_position[1] = self.iris_position[1] * 0.9 + iris_position[1] * 0.1
-        cv2.putText(self.image, f"EYEBALL DIRECTION: [{self.iris_position[0]:.2f},{self.iris_position[1]:.2f}]",
+        cv2.putText(self.image, f"EYEBALL DIRECTION: [{iris_position[0]:.2f},{iris_position[1]:.2f}]",
                     (5, 150), self.default_font, 0.8, (0, 255, 0), 2)
 
     def show(self, head_position=None, region=None, attention_center=None, talk_checker=None, sleepiness=None,
              storage=None, iris_coordinates=None, screen_distance=None, iris_position=None, left_iris_landmarks=None,
              face=None):
         if self.show_iris_coordinates and iris_coordinates:
-            self.display_iris_coordinates(left_iris_landmarks)
+            self.display_iris_coordinates(left_iris_landmarks, (face[33]+face[133])/2)
         cv2.putText(self.image, f"TOTAL DATA PROCESSED LOCALLY: ", (5, 15), self.default_font, 0.5, (255, 0, 0), 2)
         if self.show_position and head_position:
             self.display_position(head_position)
@@ -255,7 +254,7 @@ class AttentionCenter:
 
 class Attention:
     def __init__(self, green_region_boundary, yellow_region_boundary,
-                 eye_green_region_boundary, eye_yellow_region_boundary, ema_factor=0.,
+                 eye_green_region_boundary, eye_yellow_region_boundary,
                  attention_center=np.array([0, 0, -1])):
         self.green_region_boundary = green_region_boundary  # solution using angles
         self.yellow_region_boundary = yellow_region_boundary
@@ -265,63 +264,6 @@ class Attention:
         self.detected_region = None
         self.attention_center = attention_center
         self.iris_position = [0., 0.]
-        self.extendreg = np.array([0., 0., 0., 0.])
-        self.ema_factor = ema_factor
-        self.iris_Eaverage = [0., 0.]
-        self.head_screen_distance = 0
-
-    def update_green_boundary(self):
-        if MA_detected_region == Regions.YELLOW:
-            if IrisGreenBoundary.up < self.extendreg[0] < IrisYellowBoundary.up:
-                IrisGreenBoundary.up = self.extendreg[0]
-            if IrisGreenBoundary.right < self.extendreg[1] < IrisYellowBoundary.right:
-                IrisGreenBoundary.right = self.extendreg[1]
-            if IrisGreenBoundary.down > self.extendreg[2] > IrisYellowBoundary.down:
-                IrisGreenBoundary.down = self.extendreg[2]
-            if IrisGreenBoundary.left > self.extendreg[3] > IrisYellowBoundary.left:
-                IrisGreenBoundary.left = self.extendreg[3]
-            if (self.head_screen_distance / 10) > 50:
-                IrisGreenBoundary.up = (-0.0017 / 2) * (self.head_screen_distance / 10) + IrisGreenBoundary.up
-                IrisGreenBoundary.right = (-0.0021 / 2) * (self.head_screen_distance / 10) + IrisGreenBoundary.right
-                IrisGreenBoundary.down = (0.0027 / 2) * (self.head_screen_distance / 10) + IrisGreenBoundary.down
-                IrisGreenBoundary.left = (0.0021 / 2) * (self.head_screen_distance / 10) + IrisGreenBoundary.left
-            else:
-                IrisGreenBoundary.up = 0.17
-                IrisGreenBoundary.right = 0.17
-                IrisGreenBoundary.down = -0.25
-                IrisGreenBoundary.left = -0.17
-
-    def update_yellow_boundary(self):
-        if (self.head_screen_distance / 10) > 50:
-            IrisYellowBoundary.up = (-0.0017 / 1.5) * (self.head_screen_distance / 10) + 0.305
-            IrisYellowBoundary.right = (-0.0021 / 1.5) * (self.head_screen_distance / 10) + 0.319
-            IrisYellowBoundary.down = (0.0027 / 1.5) * (self.head_screen_distance / 10) - 0.395
-            IrisYellowBoundary.left = (0.0021 / 1.5) * (self.head_screen_distance / 10) - 0.319
-        else:
-            IrisYellowBoundary.up = 0.3
-            IrisYellowBoundary.right = 0.3
-            IrisYellowBoundary.down = -0.35
-            IrisYellowBoundary.left = -0.3
-
-    def calculate_iris_Eaverage(self):
-        if MA_detected_region == Regions.GREEN or MA_detected_region == Regions.YELLOW:
-            self.iris_Eaverage[0] = self.iris_Eaverage[0] * (1 - self.ema_factor) + \
-                                    self.iris_position[0] * self.ema_factor
-            self.iris_Eaverage[1] = self.iris_Eaverage[1] * (1 - self.ema_factor) + \
-                                    self.iris_position[1] * self.ema_factor
-        return self.iris_Eaverage
-
-    def calculate_extreg(self):
-        if MA_detected_region == Regions.GREEN or MA_detected_region == Regions.YELLOW:
-            self.extendreg[0] = max(self.extendreg[0], self.calculate_iris_Eaverage()[1])
-            self.extendreg[1] = max(self.extendreg[1], self.calculate_iris_Eaverage()[0])
-            self.extendreg[2] = min(self.extendreg[2], self.calculate_iris_Eaverage()[1])
-            self.extendreg[3] = min(self.extendreg[3], self.calculate_iris_Eaverage()[0])
-        return self.extendreg
-
-    def set_eye_green_region_boundary(self, boundary):
-        self.eye_green_region_boundary = boundary
-
     def iris_position_is_in_region(self, region_boundary):
         return region_boundary.up > self.iris_position[1] > region_boundary.down \
                and region_boundary.left < self.iris_position[0] < region_boundary.right
@@ -574,38 +516,12 @@ class IrisAnalysis:
         self.image_size = image_size
         self.focal_length = image_size[0]
         self.human_iris_size_in_mm = human_iris_size_in_mm
+        self.alfa_left = None
+        self.alfa_right = None
         self.alfa = None
-
-    def eyes_relative_position(self, face, left_iris, right_iris):
-        if right_iris is None and left_iris is None:
-            return None
-        elif right_iris is None:
-            return self._single_eye_relative_position(face, left_iris, is_right_eye=False)
-        elif left_iris is None:
-            return self._single_eye_relative_position(face, right_iris, is_right_eye=True)
-        else:
-            return (self._single_eye_relative_position(face, right_iris, is_right_eye=True)
-                    + self._single_eye_relative_position(face, left_iris, is_right_eye=False)) / 2
-
-    def _single_eye_relative_position(self, face, iris, is_right_eye=False):
-        if not is_right_eye:
-            right_corner = face[33, :2]
-            left_corner = face[133, :2]
-            upper_eyelid = face[159, :2]
-            lower_eyelid = face[145, :2]
-        else:
-            left_corner = face[263, :2]
-            right_corner = face[362, :2]
-            upper_eyelid = face[386, :2]
-            lower_eyelid = face[374, :2]
-        iris_center = iris[0, :2]
-        left_center_distance = np.linalg.norm(left_corner - iris_center)
-        right_center_distance = np.linalg.norm(right_corner - iris_center)
-        upper_center_distance = np.linalg.norm(upper_eyelid - iris_center)
-        lower_center_distance = np.linalg.norm(lower_eyelid - iris_center)
-        vertical_position = 2 * lower_center_distance / (upper_center_distance + lower_center_distance) - 1
-        horizontal_position = 2 * left_center_distance / (left_center_distance + right_center_distance) - 1
-        return np.array([horizontal_position, vertical_position])
+        self.beta = None
+        self.alfa_ema = None
+        self.beta_ema = None
 
     def distance_from_irises(self, left_iris, right_iris, yaw):
         if left_iris is None and right_iris is None:
@@ -615,22 +531,26 @@ class IrisAnalysis:
         elif right_iris is None:
             self._distance_from_single_iris(left_iris, yaw)
         else:
-            return (self._distance_from_single_iris(left_iris, yaw) + self._distance_from_single_iris(right_iris, yaw)) / 2
+            return (self._distance_from_single_iris(left_iris, yaw, self.alfa_left) + self._distance_from_single_iris(right_iris, yaw, self.alfa_right)) / 2
 
-    def _distance_from_single_iris(self, iris, yaw):
+    def _distance_from_single_iris(self, iris, yaw, alfa):
 
-        return self.human_iris_size_in_mm / self._iris_size(iris) * self.focal_length #* np.cos(np.radians(yaw+self.alfa))
+        return self.human_iris_size_in_mm / self._iris_size(iris) * self.focal_length * np.cos(np.radians(yaw+alfa))
 
     def _iris_size(self, iris):
         size = np.linalg.norm(iris[1, :2] - iris[3, :2])
         return size
 
-    def eye_angle_to_head(self, iris, y, face, p):
+    def _single_eye_angle_to_head(self, iris, y, face, p, is_right):
         pitch = np.radians(p)
         yaw = np.radians(y)
         i = np.linalg.norm(iris[1, :2] - iris[3, :2])
-        right_corner = face[33, :2]
-        left_corner = face[133, :2]
+        if is_right:
+            right_corner = face[362,:2]
+            left_corner = face[263,:2]
+        else:
+            right_corner = face[33, :2]
+            left_corner = face[133, :2]
         eye_center = (right_corner + left_corner) / 2
         pupil = iris[0, :2]
 
@@ -638,100 +558,47 @@ class IrisAnalysis:
 
         xpion = np.linalg.norm(eye_center[1] - pupil[1])
 
-        self.alfa = np.degrees(np.arctan(11.8 * xpoziom / (11.5 * i + 11.8 * xpoziom * np.tan(yaw))))
+        _alfa = np.degrees(np.arctan(11.8 * xpoziom / (11.5 * i + 11.8 * xpoziom * np.tan(yaw))))
 
-        if pupil[0] < eye_center[0]: self.alfa = -self.alfa
+        if pupil[0] < eye_center[0]: _alfa = -_alfa
 
-        self.beta = np.degrees(np.arcsin((xpion * 11.8 * np.cos(yaw + self.alfa)) / (i * 12.56 * np.cos(pitch))))
+        if (xpion * 11.8 * np.cos(yaw + _alfa)) / (i * 12.56 * np.cos(pitch)) < 1 and (xpion * 11.8 * np.cos(yaw + _alfa)) / (i * 12.56 * np.cos(pitch)) > -1:
+            self.beta = np.degrees(np.arcsin((xpion * 11.8 * np.cos(yaw + _alfa)) / (i * 12.56 * np.cos(pitch))))
+        else: self.beta = self.beta_ema
 
         if pupil[1] > eye_center[1]: self.beta = -self.beta
 
-        return self.alfa, self.beta
+        return _alfa, self.beta
 
+    def _eyes_angle_to_head(self, left_iris, right_iris, y, face, p):
+        if right_iris is None:
+            print('right is none')
+            self.alfa = self.alfa_left
+        elif left_iris is None:
+            print('left is none')
+            self.alfa = self.alfa_right
+        elif left_iris is None and right_iris is None:
+            print('both are none')
+            self.alfa = None
+            self.beta = None
+        else:
+            self.alfa_right = self._single_eye_angle_to_head(right_iris,y,face,p, is_right=True)[0]
+            self.alfa_left = self._single_eye_angle_to_head(left_iris,y,face,p, is_right=False)[0]
+            #print(self.alfa_right, "  R-L  ", self.alfa_left)
+            self.alfa = np.degrees(np.arctan( (np.tan(np.radians(self.alfa_left)) + np.tan(np.radians(self.alfa_right)) ) / 2))
 
-    # def _vertical_eye_angle_by_llp(self, iris, face):
-    #
-    #    pupil = iris[0, :2]
-    #    lower_lid = np.array((face[7, :2], face[163, :2], face[144, :2], face[145, :2], face[153, :2], face[154, :2], face[155, :2]))
-    #    lower_lid_avg = np.mean(lower_lid, axis=0)
+    def eyes_angle_ema(self, left_iris, right_iris, y, face, p, factor=0.05):
+        self._eyes_angle_to_head( left_iris, right_iris , y, face, p)
+        if self.alfa_ema == None: self.alfa_ema = self.alfa
+        if self.beta_ema == None: self.beta_ema = self.beta
 
-    #    return np.linalg.norm(lower_lid_avg - pupil)
-    #
-    # def _vertical_eye_angle_by_ulp(self, iris, face):
-    #
-    #    pupil = iris[0, :2]
-    #    upper_lid = np.array((face[246, :2], face[161, :2], face[160, :2], face[159, :2], face[158, :2], face[157, :2], face[173, :2]))
-    #    upper_lid_avg = np.mean(upper_lid, axis=0)
-    #
-    #    return np.linalg.norm(upper_lid_avg - pupil)
-    #
-    # def _vertical_eye_angle_by_lsp(self, iris, face):
-    #
-    #    pupil = iris[0, :2]
-    #    ls1 = np.array((face[25, :2], face[110, :2], face[24, :2], face[23, :2], face[22, :2], face[26, :2], face[112, :2]))
-    #    ls1_avg = np.mean(ls1, axis=0)
-    #
-    #    return np.linalg.norm(ls1_avg - pupil)
-    #
-    #
-    # def _vertical_eye_angle_by_usp(self, iris, face):
-    #
-    #    pupil = iris[0, :2]
-    #    us1 = np.array((face[247, :2], face[30, :2], face[29, :2], face[27, :2], face[28, :2], face[56, :2], face[190, :2]))
-    #    us1_avg = np.mean(us1, axis=0)
-    #
-    #    return np.linalg.norm(us1_avg - pupil)
-    #
-    # def _vertical_eye_angle_by_usp2(self, iris, face):
-    #
-    #    pupil = iris[0, :2]
-    #    us2 = np.array((face[113, :2], face[225, :2], face[224, :2], face[223, :2], face[222, :2], face[221, :2], face[189, :2]))
-    #    us2_avg = np.mean(us2, axis=0)
-    #
-    #    return np.linalg.norm(us2_avg - pupil)
-    #
-    # def _vertical_eye_angle_by_n168(self, iris, face):
-    #
-    #    pupil = iris[0, :2]
-    #    nose = face[168, :2]
-    #
-    #    return np.linalg.norm(nose - pupil)
-    #
-    # def _vertical_eye_angle_by_n226(self, iris, face):
-    #
-    #    pupil = iris[0, :2]
-    #    nose = face[226, :2]
-    #
-    #    return np.linalg.norm(nose - pupil)
-    #
-    # def _vertical_eye_angle_by_n8(self, iris, face):
-    #
-    #    pupil = iris[0, :2]
-    #    nose = face[8, :2]
-    #
-    #    return np.linalg.norm(nose - pupil)
-    #
-    # def _vertical_eye_angle_by_n1_33(self, iris, face):
-    #
-    #    pupil = iris[0, :2]
-    #    nose1 = face[133, :2]
-    #    nose2 = face[33, :2]
-    #    nose = (nose1 + nose2)/2
-    #
-    #    return np.linalg.norm(nose - pupil)
-    #
-    # def alfa_lu(self, face):
-    #    us1 = np.array((face[247, :2], face[30, :2], face[29, :2], face[27, :2], face[28, :2], face[56, :2], face[190, :2]))
-    #    us1_avg = np.mean(us1, axis=0)
-    #
-    #    us2 = np.array((face[113, :2], face[225, :2], face[224, :2], face[223, :2], face[222, :2], face[221, :2], face[189, :2]))
-    #    us2_avg = np.mean(us2, axis=0)
-    #
-    #    ls1 = np.array((face[25, :2], face[110, :2], face[24, :2], face[23, :2], face[22, :2], face[26, :2], face[112, :2]))
-    #    ls1_avg = np.mean(ls1, axis=0)
-    #
-    #    return np.linalg.norm(us2_avg - ls1_avg)
+        if self.beta == np.NaN:
+            self.beta_ema = self.beta_ema
+        else:
+            self.alfa_ema = self.alfa_ema * factor + (1-factor) * self.alfa
+            self.beta_ema = self.beta_ema * factor + (1-factor) * self.beta
 
+        return self.alfa_ema, self.beta_ema
 
 class FinalStats:
     def __init__(self, dataframe):
@@ -805,20 +672,15 @@ class FinalStatsCreator:
 
 
 if __name__ == "__main__":
-    # res_llp = np.empty(0); res_ulp = np.empty(0); res_lsp = np.empty(0); res_usp = np.empty(0); res_usp2 = np.empty(0)
-    # res_n168 = np.empty(0); res_n226 = np.empty(0); res_n8 = np.empty(0); res_n1_33 = np.empty(0);
-    alfa = np.empty(0);
-    beta = np.empty(0)
     face_mesh = FaceMesh()
-    IrisYellowBoundary = RegionBoundary(0.3, 0.3, -0.35, -0.3)
+    IrisYellowBoundary = RegionBoundary(0.3, 0.3, -0.35, -0.3) #stare boundaries
     IrisGreenBoundary = RegionBoundary(0.17, 0.17, -0.25, -0.17)
     visualization = Visualization()
     attention = Attention(
         RegionBoundary(30, 30, -8, -30),  # green region
         RegionBoundary(35, 50, -10, -50),  # yellow region
         IrisGreenBoundary,  # up,right,down,left; green eye region
-        IrisYellowBoundary,  # yellow eye region
-        ema_factor=0.0075)
+        IrisYellowBoundary)  # yellow eye region
     sleepiness = Sleepiness(0.25, 0.05)
     talk_checker = TalkChecker()
     storage = Storage(10)
@@ -879,60 +741,36 @@ if __name__ == "__main__":
                 eyes_position = None
                 head_screen_distance = None
                 iris_coordinates = None
-            eyes_position = iris_analysis.eyes_relative_position(landmarks, left_iris_landmarks, right_iris_landmarks)
+            eyes_position = iris_analysis.eyes_angle_ema(left_iris_landmarks, right_iris_landmarks, head_position.yaw, landmarks, head_position.pitch)
             attention.iris_position = eyes_position
-            eyes_horizontal_angle = iris_analysis.eye_angle_to_head(left_iris_landmarks, head_position.yaw, landmarks, head_position.pitch)[0]
-            eyes_vertical_angle = iris_analysis.eye_angle_to_head(left_iris_landmarks, head_position.yaw, landmarks, head_position.pitch)[1]
             head_screen_distance = iris_analysis.distance_from_irises(left_iris_landmarks, right_iris_landmarks, head_position.yaw)
             attention.head_screen_distance = head_screen_distance
             attention_center.UpdateAttention_EMA(MA_detected_region)
-            print(head_screen_distance, head_screen_distance * np.cos(np.radians(head_position.yaw+eyes_horizontal_angle)), head_position.yaw, eyes_horizontal_angle, eyes_vertical_angle)
-
-            # res_llp = np.append(arr=res_llp, values=iris_analysis._vertical_eye_angle_by_llp(iris=left_iris_landmarks, face=landmarks))
-            # res_ulp = np.append(arr=res_ulp, values=iris_analysis._vertical_eye_angle_by_ulp(iris=left_iris_landmarks, face=landmarks))
-            # res_lsp = np.append(arr=res_lsp, values=iris_analysis._vertical_eye_angle_by_lsp(iris=left_iris_landmarks, face=landmarks))
-            # res_usp = np.append(arr=res_usp, values=iris_analysis._vertical_eye_angle_by_usp(iris=left_iris_landmarks, face=landmarks))
-            # res_usp2 = np.append(arr=res_usp2, values=iris_analysis._vertical_eye_angle_by_usp2(iris=left_iris_landmarks, face=landmarks))
-            # res_n168 = np.append(arr=res_n168, values=iris_analysis._vertical_eye_angle_by_n168(iris=left_iris_landmarks, face=landmarks))
-            # res_n226 = np.append(arr=res_n226, values=iris_analysis._vertical_eye_angle_by_n226(iris=left_iris_landmarks, face=landmarks))
-            # res_n8 = np.append(arr=res_n8, values=iris_analysis._vertical_eye_angle_by_n8(iris=left_iris_landmarks, face=landmarks))
-            # res_n1_33 = np.append(arr=res_n1_33, values=iris_analysis._vertical_eye_angle_by_n1_33(iris=left_iris_landmarks, face=landmarks))
-            #alfa = np.append(arr=alfa, values=
-            #iris_analysis.eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw,
-            #                                 p=head_position.pitch)[0])
-            #beta = np.append(arr=beta, values=
-            #iris_analysis.eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw,
-            #                                 p=head_position.pitch)[1])
-            #print(np.round(
-            #    iris_analysis.eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw,
-            #                                     p=head_position.pitch), 2))
-            # b_arr = np.append(arr=b_arr, values=iris_analysis.eye_angle_to_head(iris=left_iris_landmarks, face=landmarks, y=head_position.yaw, p=head_position.pitch)[1])
 
         attention.update_head_position(head_position)
         attention.update_attention_center(attention_center)
         sleepiness.update(eyelids_movement)
         talk_checker.update(lips_movement)
-        # head_position.move_view()
 
         MA_detected_region = attention.get_detected_region_from_saved_position_as_vector()
         storage.add(MA_detected_region)
 
-        if head_position is not None:
-            df = df.append({'time': datetime.now(), 'yaw': head_position.yaw,
-                            'pitch': head_position.pitch, 'roll': head_position.roll,
-                            'eyes_position': eyes_position, 'attention_vector': head_position.direction,
-                            'attention_region': attention.detected_region,
-                            'screen_distance': head_screen_distance,
-                            'mouth_openness': lips_movement.calculate_openness(),
-                            'eyes_openness': eyelids_movement.mean_openness(),
-                            'is_mouth_open': talk_checker.is_talking()}, ignore_index=True)
-        else:
-            df = df.append({'time': datetime.now(), 'yaw': np.nan, 'pitch': np.nan,
-                            'roll': np.nan, 'eyes_position': np.nan, 'attention_vector': np.nan,
-                            'attention_region': Regions.NOT_PRESENT,
-                            'screen_distance': np.nan, 'mouth_openness': np.nan, 'eyes_openness': np.nan,
-                            'is_mouth_open': np.nan},
-                           ignore_index=True)
+        #if head_position is not None:
+        #    df = df.append({'time': datetime.now(), 'yaw': head_position.yaw,
+        #                    'pitch': head_position.pitch, 'roll': head_position.roll,
+        #                    'eyes_position': eyes_position, 'attention_vector': head_position.direction,
+        #                    'attention_region': attention.detected_region,
+        #                    'screen_distance': head_screen_distance,
+        #                    'mouth_openness': lips_movement.calculate_openness(),
+        #                    'eyes_openness': eyelids_movement.mean_openness(),
+        #                    'is_mouth_open': talk_checker.is_talking()}, ignore_index=True)
+        #else:
+        #    df = df.append({'time': datetime.now(), 'yaw': np.nan, 'pitch': np.nan,
+        #                    'roll': np.nan, 'eyes_position': np.nan, 'attention_vector': np.nan,
+        #                    'attention_region': Regions.NOT_PRESENT,
+        #                    'screen_distance': np.nan, 'mouth_openness': np.nan, 'eyes_openness': np.nan,
+        #                    'is_mouth_open': np.nan},
+        #                   ignore_index=True)
         visualization.show(head_position=head_position, region=MA_detected_region, attention_center=attention_center,
                            talk_checker=talk_checker, sleepiness=sleepiness, storage=storage,
                            iris_coordinates=iris_coordinates, screen_distance=head_screen_distance,
@@ -942,89 +780,7 @@ if __name__ == "__main__":
     if not os.path.exists('./data/'):
         os.mkdir('data')
 
-    # res_llp_avg = moving_average(res_llp, int(x_axis.shape[0]/15))
-    # res_llp_avg = (res_llp_avg - np.mean(res_llp))/np.mean(res_llp)
-    # res_llp = (res_llp - np.mean(res_llp))/np.mean(res_llp)
-
-    # res_ulp_avg = moving_average(res_ulp, int(x_axis.shape[0]/15))
-    # res_ulp_avg = (res_ulp_avg - np.mean(res_ulp))/np.mean(res_ulp)
-    # res_ulp = (res_ulp - np.mean(res_ulp))/np.mean(res_ulp)
-
-    # res_lsp_avg = moving_average(res_lsp, int(x_axis.shape[0]/15))
-    # res_lsp_avg = (res_lsp_avg - np.mean(res_lsp))/np.mean(res_lsp)
-    # res_lsp_diff = np.diff(res_lsp, n=1)
-    # res_lsp = (res_lsp - np.mean(res_lsp))/np.mean(res_lsp)
-
-    # res_usp_avg = moving_average(res_usp, int(x_axis.shape[0]/15))
-    # res_usp_avg = (res_usp_avg - np.mean(res_usp))/np.mean(res_usp)
-    # res_usp = (res_usp - np.mean(res_usp))/np.mean(res_usp)
-
-    # res_usp2_avg = moving_average(res_usp2, int(x_axis.shape[0]/15))
-    # res_usp2_avg = (res_usp2_avg - np.mean(res_usp2))/np.mean(res_usp2)
-    # res_usp2 = (res_usp2 - np.mean(res_usp2))/np.mean(res_usp2)
-
-    # res_n168_avg = moving_average(res_n168, int(x_axis.shape[0]/15))
-    # res_n168_avg = (res_n168_avg - np.mean(res_n168))/np.mean(res_n168)
-    # res_n168 = (res_n168 - np.mean(res_n168))/np.mean(res_n168)
-
-    # res_n226_avg = moving_average(res_n226, int(x_axis.shape[0] / 15))
-    # res_n226_avg = (res_n226_avg - np.mean(res_n226))/np.mean(res_n226)
-    # res_n226 = (res_n226 - np.mean(res_n226))/np.mean(res_n226)
-
-    # res_n8_avg = moving_average(res_n8, int(x_axis.shape[0] / 15))
-    # res_n8_avg = (res_n8_avg - np.mean(res_n8))/np.mean(res_n8)
-    # res_n8 = (res_n8 - np.mean(res_n8))/np.mean(res_n8)
-
-    # res_n1_33_avg = moving_average(res_n1_33, int(x_axis.shape[0] / 15))
-    # res_n1_33_avg = (res_n1_33_avg - np.mean(res_n1_33))/np.mean(res_n1_33)
-    # res_n1_33 = (res_n1_33 - np.mean(res_n1_33))/np.mean(res_n1_33)
-
-    fig, axs = plt.subplots(2)
-    fig.suptitle('vertical gaze direction offset, by reference point')
-
-    # axs[0, 0].plot(x_axis, res_llp, color='blue')
-    # axs[0, 0].plot(x_axis[:-(int(x_axis.shape[0] / 15) - 1)], res_llp_avg, color='red')
-    # axs[0, 0].set_title('lower lid - pupil')
-
-    # axs[1, 0].plot(x_axis, res_ulp, color='blue')
-    # axs[1, 0].plot(x_axis[:-(int(x_axis.shape[0] / 15) - 1)], res_ulp_avg, color='red')
-    # axs[1, 0].set_title('upper lid - pupil')
-
-    # axs[2, 0].plot(x_axis, res_lsp, color='blue')
-    # axs[2, 0].plot(x_axis[:-(int(x_axis.shape[0] / 15) - 1)], res_lsp_avg, color='red')
-    # axs[2, 0].set_title('lower static point - pupil')
-
-    # axs[3, 0].plot(x_axis, res_usp, color='blue')
-    # axs[3, 0].plot(x_axis[:-(int(x_axis.shape[0] / 15) - 1)], res_usp_avg, color='red')
-    # axs[3, 0].set_title('upper static point - pupil')
-
-    # axs[4,0].plot(x_axis, res_usp2, color='blue')
-    # axs[4,0].plot(x_axis[:-(int(x_axis.shape[0]/15)-1)], res_usp2_avg, color='red')
-    # axs[4,0].set_title('upper static point 2 - pupil')
-
-    # axs[0, 2].plot(x_axis, res_n168, color='blue')
-    # axs[0, 2].plot(x_axis[:-(int(x_axis.shape[0] / 15) - 1)], res_n168_avg, color='red')
-    # axs[0, 2].set_title('nose168 - pupil')
-
-    # axs[1,2].plot(x_axis, res_n226, color='blue')
-    # axs[1,2].plot(x_axis[:-(int(x_axis.shape[0]/15)-1)], res_n226_avg, color='red')
-    # axs[1,2].set_title('nose226 - pupil')
-
-    # axs[2,2].plot(x_axis, res_n8, color='blue')
-    # axs[2,2].plot(x_axis[:-(int(x_axis.shape[0]/15)-1)], res_n8_avg, color='red')
-    # axs[2,2].set_title('nose8 - pupil')
-
-    # axs[3,2].plot(x_axis, res_n1_33, color='blue')
-    # axs[3,2].plot(x_axis[:-(int(x_axis.shape[0]/15)-1)], res_n1_33_avg, color='red')
-    # axs[3,2].set_title('nose 133/33 - pupil')
-
-    axs[0].plot(np.arange(0, alfa.shape[0]), alfa, color='blue')
-    axs[1].set_title('poziom')
-    axs[1].plot(np.arange(0, beta.shape[0]), beta, color='blue')
-    axs[1].set_title('pion')
-    #
-
-    plt.show()
+    
     # noinspection PyTypeChecker
     filename = datetime.now().isoformat(timespec='seconds')
     df.to_csv(f"./data/{filename}.csv")
